@@ -22,6 +22,7 @@ from web3.exceptions import Web3RPCError
 from flare_ai_defai.ai import GeminiProvider
 from flare_ai_defai.attestation import Vtpm, VtpmAttestationError
 from flare_ai_defai.blockchain import FlareProvider
+from flare_ai_defai.blockchain.addresses import getTokenAddress
 from flare_ai_defai.prompts import PromptService, SemanticRouterResponse
 from flare_ai_defai.settings import settings
 
@@ -87,7 +88,9 @@ class ChatRouter:
         """
 
         @self._router.post("/")
-        async def chat(message: ChatMessage) -> dict[str, str]:  # pyright: ignore [reportUnusedFunction]
+        async def chat(
+            message: ChatMessage,
+        ) -> dict[str, str]:  # pyright: ignore [reportUnusedFunction]
             """
             Process incoming chat messages and route them to appropriate handlers.
 
@@ -101,15 +104,19 @@ class ChatRouter:
                 HTTPException: If message handling fails
             """
             try:
-                self.logger.debug("received_message", message=message.message)
+                # self.logger.debug("received_message", message=message.message)
+
+                print(f"Message: {message.message}")
+                print(f"Blockchain tx queue: {self.blockchain.tx_queue}")
 
                 if message.message.startswith("/"):
                     return await self.handle_command(message.message)
-                if (
-                    self.blockchain.tx_queue
-                    and message.message == self.blockchain.tx_queue[-1].msg
+                if self.blockchain.tx_queue and (
+                    message.message == self.blockchain.tx_queue[-1].msg
+                    or "approve" in self.blockchain.tx_queue[-1].msg.lower()
                 ):
                     try:
+                        print("============================Sending tx")
                         tx_hash = self.blockchain.send_tx_in_queue()
                     except Web3RPCError as e:
                         self.logger.exception("send_tx_failed", error=str(e))
@@ -246,16 +253,19 @@ class ChatRouter:
         Returns:
             dict[str, str]: Response containing transaction preview or follow-up prompt
         """
+
         if not self.blockchain.address:
             await self.handle_generate_account(message)
 
         prompt, mime_type, schema = self.prompts.get_formatted_prompt(
             "token_send", user_input=message
         )
+
         send_token_response = self.ai.generate(
             prompt=prompt, response_mime_type=mime_type, response_schema=schema
         )
         send_token_json = json.loads(send_token_response.text)
+
         expected_json_len = 2
         if (
             len(send_token_json) != expected_json_len
@@ -278,17 +288,117 @@ class ChatRouter:
         )
         return {"response": formatted_preview}
 
-    async def handle_swap_token(self, _: str) -> dict[str, str]:
+    # TODO: ADD A MINTING FUNCTION
+
+    async def handle_swap_token(self, message: str) -> dict[str, str]:
         """
-        Handle token swap requests (currently unsupported).
+        Handle token swap requests using Uniswap V2 router.
 
         Args:
-            _: Unused message parameter
+            message: Message containing token swap details
 
         Returns:
-            dict[str, str]: Response indicating unsupported operation
+            dict[str, str]: Response containing transaction preview or follow-up prompt
         """
-        return {"response": "Sorry I can't do that right now"}
+        if not self.blockchain.address:
+            await self.handle_generate_account(message)
+
+        # Parse the swap details from the message
+        prompt, mime_type, schema = self.prompts.get_formatted_prompt(
+            "token_swap", user_input=message
+        )
+
+        swap_token_response = self.ai.generate(
+            prompt=prompt, response_mime_type=mime_type, response_schema=schema
+        )
+
+        swap_token_json = json.loads(swap_token_response.text)
+
+        # Validate the parsed swap details
+        expected_fields = ["amount", "from_token", "to_token"]
+        if (
+            not all(field in swap_token_json for field in expected_fields)
+            or swap_token_json.get("amount") == 0.0
+        ):
+            prompt, _, _ = self.prompts.get_formatted_prompt("follow_up_token_swap")
+            follow_up_response = self.ai.generate(prompt)
+            return {"response": follow_up_response.text}
+
+        # Create the swap transaction
+        try:
+            token_in_address = getTokenAddress(swap_token_json.get("from_token"))
+            token_out_address = getTokenAddress(swap_token_json.get("to_token"))
+            amount_in = swap_token_json.get("amount")
+
+            print(f"Token in address: {token_in_address}")
+            print(f"Token out address: {token_out_address}")
+            print(f"Amount in: {amount_in}")
+
+            # Check if we need to approve tokens first
+            router_address = "0x8D29b61C41CF318d15d031BE2928F79630e068e6"
+            token_in_decimals = (
+                18  # Default to 18, should be fetched from token contract
+            )
+            amount_in_wei = int(amount_in * (10**token_in_decimals))
+
+            # print(f"account: {self.blockchain.address}")
+
+            allowance = self.blockchain.check_token_allowance(
+                token_in_address, router_address
+            )
+
+            if allowance < amount_in_wei:
+                # Need to approve tokens first
+                approval_tx = self.blockchain.create_token_approval_tx(
+                    token_address=token_in_address, spender_address=router_address
+                )
+
+                self.logger.debug("token_approval_tx", tx=approval_tx)
+                self.blockchain.add_tx_to_queue(
+                    msg=f"Approve {swap_token_json.get('token_in_symbol', 'tokens')} for swapping",
+                    tx=approval_tx,
+                )
+
+                tx_hash = self.blockchain.send_tx_in_queue()
+                print("=================================\nTx hash:", tx_hash)
+
+                # return {
+                #     "response": (
+                #         f"Before swapping, I need permission to use your "
+                #         f"{swap_token_json.get('token_in_symbol', 'tokens')}.\n"
+                #         f"Transaction Preview: Approve {swap_token_json.get('token_in_symbol', 'tokens')} "
+                #         f"for swapping.\nType CONFIRM to proceed with approval."
+                #     )
+                # }
+
+            print("=================================HERE")
+
+            # Create the swap transaction
+            swap_tx = self.blockchain.create_swap_tokens_tx(
+                token_in_address=token_in_address,
+                token_out_address=token_out_address,
+                amount_in=amount_in,
+                amount_out_min=0,
+            )
+
+            print("=================================\nSwap tx:", swap_tx)
+
+            self.logger.debug("swap_token_tx", tx=swap_tx)
+            self.blockchain.add_tx_to_queue(msg=message, tx=swap_tx)
+
+            formatted_preview = (
+                f"Transaction Preview: Swapping {amount_in} "
+                f"{swap_token_json.get('from_token')} for {swap_token_json.get('to_token')}\n"
+                "Type CONFIRM to proceed."
+            )
+            return {"response": formatted_preview}
+        except Exception as e:
+            self.logger.exception("swap_token_failed", error=str(e))
+            return {
+                "response": f"Sorry, I couldn't create the swap transaction: {str(e)}"
+            }
+
+        return {"response": "You are an idiot"}
 
     async def handle_attestation(self, _: str) -> dict[str, str]:
         """

@@ -106,22 +106,8 @@ Rules:
 TOKEN_SWAP: Final = """
 Extract EXACTLY three pieces of information from the input for a token swap operation:
 
-1. SOURCE TOKEN (from_token)
-   Valid formats:
-   • Native token: "FLR" or "flr"
-   • Listed pairs only: "USDC", "WFLR", "USDT", "sFLR", "WETH"
-   • Case-insensitive match
-   • Strip spaces and normalize to uppercase
-   • FAIL if token not recognized
 
-2. DESTINATION TOKEN (to_token)
-   Valid formats:
-   • Same rules as source token
-   • Must be different from source token
-   • FAIL if same as source token
-   • FAIL if token not recognized
-
-3. SWAP AMOUNT
+1. SWAP AMOUNT
    Number extraction rules:
    • Convert written numbers to digits (e.g., "five" → 5.0)
    • Handle decimal and integer inputs
@@ -134,13 +120,30 @@ Extract EXACTLY three pieces of information from the input for a token swap oper
    • Amount MUST be positive
    • FAIL if no valid amount found
 
+2. SOURCE TOKEN (from_token)
+   Valid formats:
+   • Native token: "FLR" or "flr"
+   • Listed pairs only: "USDC", "WFLR", "USDT", "sFLR", "WETH"
+   • Case-insensitive match
+   • Strip spaces and normalize to uppercase
+   • FAIL if token not recognized
+
+3. DESTINATION TOKEN (to_token)
+   Valid formats:
+   • Same rules as source token
+   • Must be different from source token
+   • FAIL if same as source token
+   • FAIL if token not recognized
+
+
 Input: ${user_input}
 
 Response format:
 {
+  "amount": <float_value>,
   "from_token": "<UPPERCASE_TOKEN_SYMBOL>",
   "to_token": "<UPPERCASE_TOKEN_SYMBOL>",
-  "amount": <float_value>
+  
 }
 
 Processing rules:
@@ -148,7 +151,7 @@ Processing rules:
 - DO NOT infer missing values
 - DO NOT allow same token pairs
 - Normalize token symbols to uppercase
-- Amount MUST be float type
+- Amount MUST be int or float type
 - Amount MUST be positive
 - FAIL if any value missing or invalid
 
@@ -158,6 +161,11 @@ Examples:
 ✗ "swap flr to flr" → FAIL (same token)
 ✗ "swap tokens" → FAIL (missing amount)
 """
+
+FOLLOW_UP_TOKEN_SWAP: Final = """
+   Please provide the following information in your next response: ["amount", "from_token", "to_token"]
+"""
+
 
 CONVERSATIONAL: Final = """
 I am Artemis, an AI assistant representing Flare, the blockchain network specialized in cross-chain data oracle services.

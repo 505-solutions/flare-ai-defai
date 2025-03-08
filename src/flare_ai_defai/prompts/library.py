@@ -34,6 +34,7 @@ from flare_ai_defai.prompts.templates import (
     TOKEN_SEND,
     TOKEN_SWAP,
     TX_CONFIRMATION,
+    FOLLOW_UP_TOKEN_SWAP,
 )
 
 logger = structlog.get_logger(__name__)
@@ -111,6 +112,15 @@ class PromptLibrary:
                 required_inputs=["user_input"],
                 response_schema=TokenSwapResponse,
                 response_mime_type="application/json",
+                category="defai",
+            ),
+            Prompt(
+                name="follow_up_token_swap",
+                description="Follow up prompt for token swap",
+                template=FOLLOW_UP_TOKEN_SWAP,
+                required_inputs=["user_input"],
+                response_schema=None,
+                response_mime_type=None,
                 category="defai",
             ),
             Prompt(
