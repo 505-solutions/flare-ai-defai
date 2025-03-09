@@ -13,6 +13,8 @@ from eth_typing import ChecksumAddress
 from web3 import Web3
 from web3.types import TxParams
 
+from flare_ai_defai.blockchain.addresses import getLendingTokenAddress
+
 
 @dataclass
 class TxQueueElement:
@@ -206,8 +208,8 @@ class FlareProvider:
         self,
         token_in_address: str,
         token_out_address: str,
-        amount_in: float,
-        amount_out_min: float,
+        amount_in: int,
+        amount_out_min: int,
         deadline_seconds: int = 600,  # 10 minutes by default
     ) -> TxParams:
         """
@@ -265,24 +267,14 @@ class FlareProvider:
         ]
         router_contract = self.w3.eth.contract(address=router_address, abi=router_abi)
 
-        # Convert amounts to wei
-        token_in_decimals = (
-            18  # Default to 18, but should be fetched from token contract
-        )
-        token_out_decimals = (
-            18  # Default to 18, but should be fetched from token contract
-        )
-        amount_in_wei = int(amount_in * (10**token_in_decimals))
-        amount_out_min_wei = int(amount_out_min * (10**token_out_decimals))
-
         # Calculate deadline
         deadline = 1742574921
         print(router_contract.functions.swapExactTokensForTokens)
 
         # Create the swap transaction
         swap_function = router_contract.functions.swapExactTokensForTokens(
-            amount_in_wei,
-            amount_out_min_wei,
+            amount_in,
+            amount_out_min,
             [token_in_address, token_out_address],  # Path
             self.address,  # To address (recipient)
             deadline,
@@ -304,7 +296,7 @@ class FlareProvider:
         self.logger.debug("create_swap_tokens_tx", tx=tx)
         return tx
 
-    def create_lending_tx(self, token_address: str, amount: float) -> TxParams:
+    def create_lending_tx(self, token_address: str, amount: int) -> TxParams:
         """
         Create a transaction to lend tokens.
 
@@ -322,37 +314,66 @@ class FlareProvider:
         # Convert addresses to checksum format
         token_address = self.w3.to_checksum_address(token_address)
 
-        # Load Uniswap V2 Router ABI (you'll need to add this to your project)
-        kFLR_address = self.w3.to_checksum_address(
-            "0x81aD20a8b8866041150008CF46Cc868a7f265065"
-        )  # Example Sushiswap router on Flare
-        kFLR_abi = [
-            {
-                "constant": False,
-                "inputs": [],
-                "name": "mint",
-                "outputs": [{"name": "", "type": "uint256[]"}],
-                "payable": True,
-                "stateMutability": "payable",
-                "type": "function",
-            }
-        ]
+        print("token_address ", token_address)
 
-        kFLR_contract = self.w3.eth.contract(address=kFLR_address, abi=kFLR_abi)
+        # Load Uniswap V2 Router ABI (you'll need to add this to your project)
+        kToken_address = self.w3.to_checksum_address(
+            getLendingTokenAddress(token_address)
+        )
+
+        print("kToken_address ", kToken_address)
+
+        kToken_abi = (
+            [
+                {
+                    "constant": False,
+                    "inputs": [
+                        {
+                            "internalType": "uint256",
+                            "name": "mintAmount",
+                            "type": "uint256",
+                        }
+                    ],
+                    "name": "mint",
+                    "outputs": [
+                        {"internalType": "uint256", "name": "", "type": "uint256"}
+                    ],
+                    "payable": False,
+                    "stateMutability": "nonpayable",
+                    "type": "function",
+                },
+            ]
+            if token_address != "0x0000000000000000000000000000000000000000"
+            else [
+                {
+                    "constant": False,
+                    "inputs": [],
+                    "name": "mint",
+                    "outputs": [{"name": "", "type": "uint256"}],
+                    "payable": True,
+                    "stateMutability": "payable",
+                    "type": "function",
+                }
+            ]
+        )
+        print("kToken_abi ", kToken_abi)
+
+        kToken_contract = self.w3.eth.contract(address=kToken_address, abi=kToken_abi)
 
         # Build the transaction
-        tx = kFLR_contract.functions.mint().build_transaction(
-            {
-                "from": self.address,
-                "nonce": self.w3.eth.get_transaction_count(self.address),
-                "gas": 200000,  # Estimate gas or use gas estimation
-                "maxFeePerGas": self.w3.eth.gas_price,
-                "maxPriorityFeePerGas": self.w3.eth.max_priority_fee,
-                "chainId": self.w3.eth.chain_id,
-                "type": 2,
-                "value": self.w3.to_wei(amount, unit="ether"),
-            }
-        )
+        funcParams = {
+            "from": self.address,
+            "nonce": self.w3.eth.get_transaction_count(self.address),
+            "gas": 3000000,  # Estimate gas or use gas estimation
+            "maxFeePerGas": self.w3.eth.gas_price,
+            "maxPriorityFeePerGas": self.w3.eth.max_priority_fee + 5,
+            "chainId": self.w3.eth.chain_id,
+        }
+        if token_address != "0x0000000000000000000000000000000000000000":
+            tx = kToken_contract.functions.mint(amount).build_transaction(funcParams)
+        else:
+            funcParams["value"] = amount
+            tx = kToken_contract.functions.mint().build_transaction(funcParams)
 
         print("tx ", tx)
 

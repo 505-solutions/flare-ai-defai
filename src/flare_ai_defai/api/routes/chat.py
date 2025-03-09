@@ -22,7 +22,12 @@ from web3.exceptions import Web3RPCError
 from flare_ai_defai.ai import GeminiProvider
 from flare_ai_defai.attestation import Vtpm, VtpmAttestationError
 from flare_ai_defai.blockchain import FlareProvider
-from flare_ai_defai.blockchain.addresses import getTokenAddress
+from flare_ai_defai.blockchain.addresses import (
+    getLendingTokenAddress,
+    getTokenAddressForLending,
+    getTokenAddressForSwap,
+    getTokenDecimals,
+)
 from flare_ai_defai.prompts import PromptService, SemanticRouterResponse
 from flare_ai_defai.settings import settings
 
@@ -90,7 +95,7 @@ class ChatRouter:
         @self._router.post("/")
         async def chat(
             message: ChatMessage,
-        ) -> dict[str, str]:  # pyright: ignore [reportUnusedFunction]
+        ) -> dict[str, str]:
             """
             Process incoming chat messages and route them to appropriate handlers.
 
@@ -326,40 +331,28 @@ class ChatRouter:
 
         # Create the swap transaction
         try:
-            token_in_address = getTokenAddress(swap_token_json.get("from_token"))
-            token_out_address = getTokenAddress(swap_token_json.get("to_token"))
+            token_in_address = getTokenAddressForSwap(swap_token_json.get("from_token"))
+            token_out_address = getTokenAddressForSwap(swap_token_json.get("to_token"))
             amount_in = swap_token_json.get("amount")
+            token_in_decimals = getTokenDecimals(swap_token_json.get("from_token"))
 
             # Check if we need to approve tokens first
             router_address = "0x8D29b61C41CF318d15d031BE2928F79630e068e6"
-            token_in_decimals = 18
             amount_in_wei = int(amount_in * (10**token_in_decimals))
 
             # print(f"account: {self.blockchain.address}")
 
-            allowance = self.blockchain.check_token_allowance(
-                token_in_address, router_address
+            await self.check_token_allowance(
+                token_address=token_in_address,
+                spender_address=router_address,
+                amount_in_wei=amount_in_wei,
             )
-
-            if allowance < amount_in_wei:
-                # Need to approve tokens first
-                approval_tx = self.blockchain.create_token_approval_tx(
-                    token_address=token_in_address, spender_address=router_address
-                )
-
-                self.logger.debug("token_approval_tx", tx=approval_tx)
-                self.blockchain.add_tx_to_queue(
-                    msg=f"Approve {swap_token_json.get('token_in_symbol', 'tokens')} for swapping",
-                    tx=approval_tx,
-                )
-
-                tx_hash = self.blockchain.send_tx_in_queue()
 
             # Create the swap transaction
             swap_tx = self.blockchain.create_swap_tokens_tx(
                 token_in_address=token_in_address,
                 token_out_address=token_out_address,
-                amount_in=amount_in,
+                amount_in=amount_in_wei,
                 amount_out_min=0,
             )
 
@@ -416,9 +409,23 @@ class ChatRouter:
         try:
             amount = lend_token_json.get("amount")
             token = lend_token_json.get("token")
-            token_address = getTokenAddress(token)
+            token_address = getTokenAddressForLending(token)
+            token_decimals = getTokenDecimals(token)
 
-            tx = self.blockchain.create_lending_tx(token_address, amount)
+            amount_in_wei = int(amount * (10**token_decimals))
+
+            # Load Uniswap V2 Router ABI (you'll need to add this to your project)
+            kToken_address = self.blockchain.w3.to_checksum_address(
+                getLendingTokenAddress(token_address)
+            )
+
+            await self.check_token_allowance(
+                token_address=token_address,
+                spender_address=kToken_address,
+                amount_in_wei=amount_in_wei,
+            )
+
+            tx = self.blockchain.create_lending_tx(token_address, amount_in_wei)
             self.blockchain.add_tx_to_queue(msg=message, tx=tx)
         except Exception as e:
             self.logger.exception("lend_token_failed", error=str(e))
@@ -431,6 +438,46 @@ class ChatRouter:
             "Type CONFIRM to proceed."
         )
         return {"response": formatted_preview}
+
+    async def check_token_allowance(
+        self, token_address: str, spender_address: str, amount_in_wei: int
+    ) -> int:
+        """
+        Check the token allowance for a spender.
+
+        Args:
+            token_address: Address of the token to check allowance for
+            spender_address: Address of the spender
+
+        Returns:
+            int: Allowance amount
+        """
+
+        if token_address == "0x0000000000000000000000000000000000000000":
+            return
+
+        allowance = self.blockchain.check_token_allowance(
+            token_address, spender_address
+        )
+
+        if allowance < amount_in_wei:
+
+            # Need to approve tokens first
+            approval_tx = self.blockchain.create_token_approval_tx(
+                token_address=token_address,
+                spender_address=spender_address,
+                amount=amount_in_wei,
+            )
+
+            self.logger.debug("token_approval_tx", tx=approval_tx)
+            self.blockchain.add_tx_to_queue(
+                msg=f"Approve {token_address} for swapping/lending",
+                tx=approval_tx,
+            )
+
+            tx_hash = self.blockchain.send_tx_in_queue()
+            print(f"tx_hash: {tx_hash}")
+            return tx_hash
 
     async def handle_attestation(self, _: str) -> dict[str, str]:
         """
