@@ -310,7 +310,7 @@ class ChatRouter:
 
         answer, shapley_values, response_data = await run_consensus_test(message)
 
-        return {"response": answer}
+        return {"response": answer, "shapley_values": shapley_values, "response_data": response_data}
 
     # TODO: ADD A MINT WRAPPED FLR FUNCTION
 
