@@ -25,6 +25,7 @@ from flare_ai_defai.prompts.schemas import (
     SemanticRouterResponse,
     TokenSendResponse,
     TokenSwapResponse,
+    TokenLendResponse,
 )
 from flare_ai_defai.prompts.templates import (
     CONVERSATIONAL,
@@ -35,6 +36,8 @@ from flare_ai_defai.prompts.templates import (
     TOKEN_SWAP,
     TX_CONFIRMATION,
     FOLLOW_UP_TOKEN_SWAP,
+    TOKEN_LEND,
+    FOLLOW_UP_TOKEN_LEND,
 )
 
 logger = structlog.get_logger(__name__)
@@ -79,6 +82,7 @@ class PromptLibrary:
         - semantic_router: For routing user queries
         - token_send: For token transfer operations
         - token_swap: For token swap operations
+        - token_lend: For token lending operations
         - generate_account: For wallet generation
         - conversational: For general user interactions
         - request_attestation: For remote attestation requests
@@ -118,6 +122,24 @@ class PromptLibrary:
                 name="follow_up_token_swap",
                 description="Follow up prompt for token swap",
                 template=FOLLOW_UP_TOKEN_SWAP,
+                required_inputs=["user_input"],
+                response_schema=None,
+                response_mime_type=None,
+                category="defai",
+            ),
+            Prompt(
+                name="token_lend",
+                description="Extract token lend parameters from user input",
+                template=TOKEN_LEND,
+                required_inputs=["user_input"],
+                response_schema=TokenLendResponse,
+                response_mime_type="application/json",
+                category="defai",
+            ),
+            Prompt(
+                name="follow_up_token_lend",
+                description="Follow up prompt for token lend",
+                template=FOLLOW_UP_TOKEN_LEND,
                 required_inputs=["user_input"],
                 response_schema=None,
                 response_mime_type=None,

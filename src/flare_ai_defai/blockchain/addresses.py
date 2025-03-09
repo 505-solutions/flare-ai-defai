@@ -16,3 +16,6 @@ def getTokenAddress(token_name: str) -> str:
         return TokenAddresses["WC2FLR"]
     else:
         raise ValueError(f"Token {token_name} not found")
+
+
+LendingTokenAddresses = {}

@@ -38,6 +38,7 @@ class SemanticRouterResponse(str, Enum):
     SWAP_TOKEN = "SwapToken"
     REQUEST_ATTESTATION = "RequestAttestation"
     CONVERSATIONAL = "Conversational"
+    LEND_TOKEN = "LendToken"
 
 
 class TokenSendResponse(TypedDict):
@@ -71,6 +72,22 @@ class TokenSwapResponse(TypedDict):
 
     from_token: str
     to_token: str
+    amount: float
+
+
+class TokenLendResponse(TypedDict):
+    """
+    Type definition for token lending operation parameters.
+
+    Defines the required fields for a token lend operation, including
+    the token and amount to be lent.
+
+    Attributes:
+        token (str): The token to lend
+        amount (float): The amount of token to lend
+    """
+
+    token: str
     amount: float
 
 

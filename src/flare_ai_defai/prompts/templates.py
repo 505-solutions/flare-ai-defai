@@ -18,13 +18,17 @@ Categories (in order of precedence):
    • Keywords: swap, exchange, trade, convert tokens
    • Must involve exchanging one token type for another
    • Should mention both source and target tokens
+   
+4. LEND_TOKEN
+   • Keywords: lend, borrow, supply, deposit, mint tokens
+   • Must involve lending or borrowing tokens
 
-4. REQUEST_ATTESTATION
+5. REQUEST_ATTESTATION
    • Keywords: attestation, verify, prove, check enclave
    • Must specifically request verification or attestation
    • Related to security or trust verification
 
-5. CONVERSATIONAL (default)
+6. CONVERSATIONAL (default)
    • Use when input doesn't clearly match above categories
    • General questions, greetings, or unclear requests
    • Any ambiguous or multi-category inputs
@@ -166,6 +170,56 @@ FOLLOW_UP_TOKEN_SWAP: Final = """
    Please provide the following information in your next response: ["amount", "from_token", "to_token"]
 """
 
+TOKEN_LEND: Final = """
+Extract EXACTLY two pieces of information from the input for a token lend operation:
+
+1. LEND AMOUNT
+   Number extraction rules:
+   • Convert written numbers to digits (e.g., "five" → 5.0)
+   • Handle decimal and integer inputs
+   • Convert ALL integers to float (e.g., 100 → 100.0)
+   • Valid formats:
+     - Decimal: "1.5", "0.5"
+     - Integer: "1", "100"
+     - With tokens: "5 FLR", "10 USDC"
+   • Extract first valid number only
+   
+   • Amount MUST be positive
+   • FAIL if no valid amount found
+
+2. LEND TOKEN
+   Valid formats:
+   • Same rules as source token
+   • FAIL if token not recognized
+   
+
+Input: ${user_input}
+
+Response format:
+{
+  "amount": <float_value>,
+  "token": "<UPPERCASE_TOKEN_SYMBOL>",
+}
+
+Processing rules:
+- All two fields MUST be present
+- DO NOT infer missing values
+- DO NOT allow same token pairs
+- Normalize token symbols to uppercase
+- Amount MUST be int or float type
+- Amount MUST be positive
+- FAIL if any value missing or invalid
+
+Examples:
+✓ "lend 100 FLR" → {"amount": 100.0, "token": "FLR"}
+✓ "supply 50.5 flr" → {"amount": 50.5, "token": "FLR"}
+✗ "lend flr" → FAIL (missing amount)
+✗ "lend tokens" → FAIL (missing amount)
+"""
+
+FOLLOW_UP_TOKEN_LEND: Final = """
+   Please provide the following information in your next response: ["amount", "token"]
+"""
 
 CONVERSATIONAL: Final = """
 I am Artemis, an AI assistant representing Flare, the blockchain network specialized in cross-chain data oracle services.

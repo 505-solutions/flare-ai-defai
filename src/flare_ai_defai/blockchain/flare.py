@@ -304,6 +304,61 @@ class FlareProvider:
         self.logger.debug("create_swap_tokens_tx", tx=tx)
         return tx
 
+    def create_lending_tx(self, token_address: str, amount: float) -> TxParams:
+        """
+        Create a transaction to lend tokens.
+
+        Args:
+            token_address (str): Address of the token
+            amount (float): Amount of tokens to lend
+
+        Returns:
+            TxParams: Transaction parameters for lending tokens
+
+        Raises:
+            ValueError: If account does not exist
+        """
+
+        # Convert addresses to checksum format
+        token_address = self.w3.to_checksum_address(token_address)
+
+        # Load Uniswap V2 Router ABI (you'll need to add this to your project)
+        kFLR_address = self.w3.to_checksum_address(
+            "0x81aD20a8b8866041150008CF46Cc868a7f265065"
+        )  # Example Sushiswap router on Flare
+        kFLR_abi = [
+            {
+                "constant": False,
+                "inputs": [],
+                "name": "mint",
+                "outputs": [{"name": "", "type": "uint256[]"}],
+                "payable": True,
+                "stateMutability": "payable",
+                "type": "function",
+            }
+        ]
+
+        kFLR_contract = self.w3.eth.contract(address=kFLR_address, abi=kFLR_abi)
+
+        # Build the transaction
+        tx = kFLR_contract.functions.mint().build_transaction(
+            {
+                "from": self.address,
+                "nonce": self.w3.eth.get_transaction_count(self.address),
+                "gas": 200000,  # Estimate gas or use gas estimation
+                "maxFeePerGas": self.w3.eth.gas_price,
+                "maxPriorityFeePerGas": self.w3.eth.max_priority_fee,
+                "chainId": self.w3.eth.chain_id,
+                "type": 2,
+                "value": self.w3.to_wei(amount, unit="ether"),
+            }
+        )
+
+        print("tx ", tx)
+
+        self.logger.debug("create_lending_tx", tx=tx)
+        return tx
+
     def check_token_allowance(self, token_address: str, spender_address: str) -> int:
         """
         Check the token allowance for a spender.

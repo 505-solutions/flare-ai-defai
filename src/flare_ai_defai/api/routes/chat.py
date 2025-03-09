@@ -116,7 +116,6 @@ class ChatRouter:
                     or "approve" in self.blockchain.tx_queue[-1].msg.lower()
                 ):
                     try:
-                        print("============================Sending tx")
                         tx_hash = self.blockchain.send_tx_in_queue()
                     except Web3RPCError as e:
                         self.logger.exception("send_tx_failed", error=str(e))
@@ -213,6 +212,7 @@ class ChatRouter:
             SemanticRouterResponse.SWAP_TOKEN: self.handle_swap_token,
             SemanticRouterResponse.REQUEST_ATTESTATION: self.handle_attestation,
             SemanticRouterResponse.CONVERSATIONAL: self.handle_conversation,
+            SemanticRouterResponse.LEND_TOKEN: self.handle_lend_token,
         }
 
         handler = handlers.get(route)
@@ -288,7 +288,7 @@ class ChatRouter:
         )
         return {"response": formatted_preview}
 
-    # TODO: ADD A MINTING FUNCTION
+    # TODO: ADD A MINT WRAPPED FLR FUNCTION
 
     async def handle_swap_token(self, message: str) -> dict[str, str]:
         """
@@ -330,15 +330,9 @@ class ChatRouter:
             token_out_address = getTokenAddress(swap_token_json.get("to_token"))
             amount_in = swap_token_json.get("amount")
 
-            print(f"Token in address: {token_in_address}")
-            print(f"Token out address: {token_out_address}")
-            print(f"Amount in: {amount_in}")
-
             # Check if we need to approve tokens first
             router_address = "0x8D29b61C41CF318d15d031BE2928F79630e068e6"
-            token_in_decimals = (
-                18  # Default to 18, should be fetched from token contract
-            )
+            token_in_decimals = 18
             amount_in_wei = int(amount_in * (10**token_in_decimals))
 
             # print(f"account: {self.blockchain.address}")
@@ -360,18 +354,6 @@ class ChatRouter:
                 )
 
                 tx_hash = self.blockchain.send_tx_in_queue()
-                print("=================================\nTx hash:", tx_hash)
-
-                # return {
-                #     "response": (
-                #         f"Before swapping, I need permission to use your "
-                #         f"{swap_token_json.get('token_in_symbol', 'tokens')}.\n"
-                #         f"Transaction Preview: Approve {swap_token_json.get('token_in_symbol', 'tokens')} "
-                #         f"for swapping.\nType CONFIRM to proceed with approval."
-                #     )
-                # }
-
-            print("=================================HERE")
 
             # Create the swap transaction
             swap_tx = self.blockchain.create_swap_tokens_tx(
@@ -380,8 +362,6 @@ class ChatRouter:
                 amount_in=amount_in,
                 amount_out_min=0,
             )
-
-            print("=================================\nSwap tx:", swap_tx)
 
             self.logger.debug("swap_token_tx", tx=swap_tx)
             self.blockchain.add_tx_to_queue(msg=message, tx=swap_tx)
@@ -398,7 +378,59 @@ class ChatRouter:
                 "response": f"Sorry, I couldn't create the swap transaction: {str(e)}"
             }
 
-        return {"response": "You are an idiot"}
+    async def handle_lend_token(self, message: str) -> dict[str, str]:
+        """
+        Handle token lending requests.
+
+        Args:
+            message: Message containing token lending details
+
+        Returns:
+            dict[str, str]: Response containing transaction preview or follow-up prompt
+        """
+        if not self.blockchain.address:
+            await self.handle_generate_account(message)
+
+        prompt, mime_type, schema = self.prompts.get_formatted_prompt(
+            "token_lend", user_input=message
+        )
+
+        lend_token_response = self.ai.generate(
+            prompt=prompt, response_mime_type=mime_type, response_schema=schema
+        )
+        lend_token_json = json.loads(lend_token_response.text)
+
+        print("lend_token_json ", lend_token_json)
+
+        expected_json_len = 2
+        if (
+            len(lend_token_json) != expected_json_len
+            or lend_token_json.get("amount") == 0.0
+        ):
+            prompt, _, _ = self.prompts.get_formatted_prompt("follow_up_token_lend")
+            follow_up_response = self.ai.generate(prompt)
+            return {"response": follow_up_response.text}
+
+        # Create the lending transaction
+
+        try:
+            amount = lend_token_json.get("amount")
+            token = lend_token_json.get("token")
+            token_address = getTokenAddress(token)
+
+            tx = self.blockchain.create_lending_tx(token_address, amount)
+            self.blockchain.add_tx_to_queue(msg=message, tx=tx)
+        except Exception as e:
+            self.logger.exception("lend_token_failed", error=str(e))
+            return {
+                "response": f"Sorry, I couldn't create the lending transaction: {str(e)}"
+            }
+
+        formatted_preview = (
+            f"Transaction Preview: Lending {amount} {token}\n"
+            "Type CONFIRM to proceed."
+        )
+        return {"response": formatted_preview}
 
     async def handle_attestation(self, _: str) -> dict[str, str]:
         """
