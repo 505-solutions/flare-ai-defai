@@ -269,7 +269,6 @@ class FlareProvider:
 
         # Calculate deadline
         deadline = 1742574921
-        print(router_contract.functions.swapExactTokensForTokens)
 
         # Create the swap transaction
         swap_function = router_contract.functions.swapExactTokensForTokens(
@@ -292,6 +291,8 @@ class FlareProvider:
                 "type": 2,
             }
         )
+        
+        
 
         self.logger.debug("create_swap_tokens_tx", tx=tx)
         return tx
@@ -314,14 +315,12 @@ class FlareProvider:
         # Convert addresses to checksum format
         token_address = self.w3.to_checksum_address(token_address)
 
-        print("token_address ", token_address)
 
         # Load Uniswap V2 Router ABI (you'll need to add this to your project)
         kToken_address = self.w3.to_checksum_address(
             getLendingTokenAddress(token_address)
         )
 
-        print("kToken_address ", kToken_address)
 
         kToken_abi = (
             [
@@ -356,7 +355,6 @@ class FlareProvider:
                 }
             ]
         )
-        print("kToken_abi ", kToken_abi)
 
         kToken_contract = self.w3.eth.contract(address=kToken_address, abi=kToken_abi)
 
@@ -375,7 +373,6 @@ class FlareProvider:
             funcParams["value"] = amount
             tx = kToken_contract.functions.mint().build_transaction(funcParams)
 
-        print("tx ", tx)
 
         self.logger.debug("create_lending_tx", tx=tx)
         return tx

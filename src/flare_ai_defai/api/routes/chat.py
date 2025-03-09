@@ -20,6 +20,7 @@ from web3 import Web3
 from web3.exceptions import Web3RPCError
 
 from flare_ai_defai.ai import GeminiProvider
+from flare_ai_defai.ai.consensus import run_consensus_test
 from flare_ai_defai.attestation import Vtpm, VtpmAttestationError
 from flare_ai_defai.blockchain import FlareProvider
 from flare_ai_defai.blockchain.addresses import (
@@ -93,7 +94,7 @@ class ChatRouter:
         """
 
         @self._router.post("/")
-        async def chat(
+        async def chat(  # type: ignore
             message: ChatMessage,
         ) -> dict[str, str]:
             """
@@ -296,6 +297,46 @@ class ChatRouter:
     # TODO: ADD A MINT WRAPPED FLR FUNCTION
 
     async def handle_swap_token(self, message: str) -> dict[str, str]:
+
+        print(f"Message: {message}")
+
+        answer, shapley_values, response_data = await run_consensus_test(message)
+
+        print(f"Answer: {answer}")
+
+        answer = answer.strip()  # Remove whitespace
+        if answer.startswith("\ufeff"):  # BOM character
+            answer = answer[1:]  # Remove it
+
+        print(f"Answer: {answer}")
+
+        answer_json = json.loads(answer)
+
+        # Extract values
+        operation = answer_json["operation"]
+        token_a = answer_json["token_a"]
+        token_b = answer_json["token_b"]
+        amount = answer_json["amount"]
+        reason = answer_json["reason"]
+
+        # Print extracted values
+        print(f"Operation: {operation}")
+        print(f"Token A: {token_a}")
+        print(f"Token B: {token_b}")
+        print(f"Amount: {amount}")
+        print(f"Reason: {reason}")
+
+        # print(f"Answer: {answer}")
+        # print(f"Shapley Values: {shapley_values}")
+        # print(f"Response Data: {response_data}")
+
+        response = await self._handle_swap_token(message, token_a, token_b, amount)
+
+        return {"response": response, "answer": answer_json}
+
+    async def _handle_swap_token(
+        self, message: str, from_token: str, to_token: str, amount: float
+    ) -> dict[str, str]:
         """
         Handle token swap requests using Uniswap V2 router.
 
@@ -308,39 +349,37 @@ class ChatRouter:
         if not self.blockchain.address:
             await self.handle_generate_account(message)
 
-        # Parse the swap details from the message
-        prompt, mime_type, schema = self.prompts.get_formatted_prompt(
-            "token_swap", user_input=message
-        )
+        # # Parse the swap details from the message
+        # prompt, mime_type, schema = self.prompts.get_formatted_prompt(
+        #     "token_swap", user_input=message
+        # )
 
-        swap_token_response = self.ai.generate(
-            prompt=prompt, response_mime_type=mime_type, response_schema=schema
-        )
+        # swap_token_response = self.ai.generate(
+        #     prompt=prompt, response_mime_type=mime_type, response_schema=schema
+        # )
 
-        swap_token_json = json.loads(swap_token_response.text)
+        # swap_token_json = json.loads(swap_token_response.text)
 
-        # Validate the parsed swap details
-        expected_fields = ["amount", "from_token", "to_token"]
-        if (
-            not all(field in swap_token_json for field in expected_fields)
-            or swap_token_json.get("amount") == 0.0
-        ):
-            prompt, _, _ = self.prompts.get_formatted_prompt("follow_up_token_swap")
-            follow_up_response = self.ai.generate(prompt)
-            return {"response": follow_up_response.text}
+        # # Validate the parsed swap details
+        # expected_fields = ["amount", "from_token", "to_token"]
+        # if (
+        #     not all(field in swap_token_json for field in expected_fields)
+        #     or swap_token_json.get("amount") == 0.0
+        # ):
+        #     prompt, _, _ = self.prompts.get_formatted_prompt("follow_up_token_swap")
+        #     follow_up_response = self.ai.generate(prompt)
+        #     return {"response": follow_up_response.text}
 
         # Create the swap transaction
         try:
-            token_in_address = getTokenAddressForSwap(swap_token_json.get("from_token"))
-            token_out_address = getTokenAddressForSwap(swap_token_json.get("to_token"))
-            amount_in = swap_token_json.get("amount")
-            token_in_decimals = getTokenDecimals(swap_token_json.get("from_token"))
+            token_in_address = getTokenAddressForSwap(from_token)
+            token_out_address = getTokenAddressForSwap(to_token)
+            amount_in = amount
+            token_in_decimals = getTokenDecimals(from_token)
 
             # Check if we need to approve tokens first
             router_address = "0x8D29b61C41CF318d15d031BE2928F79630e068e6"
             amount_in_wei = int(amount_in * (10**token_in_decimals))
-
-            # print(f"account: {self.blockchain.address}")
 
             await self.check_token_allowance(
                 token_address=token_in_address,
@@ -361,7 +400,7 @@ class ChatRouter:
 
             formatted_preview = (
                 f"Transaction Preview: Swapping {amount_in} "
-                f"{swap_token_json.get('from_token')} for {swap_token_json.get('to_token')}\n"
+                f"{from_token} for {to_token}\n"
                 "Type CONFIRM to proceed."
             )
             return {"response": formatted_preview}
@@ -392,8 +431,6 @@ class ChatRouter:
             prompt=prompt, response_mime_type=mime_type, response_schema=schema
         )
         lend_token_json = json.loads(lend_token_response.text)
-
-        print("lend_token_json ", lend_token_json)
 
         expected_json_len = 2
         if (
@@ -476,7 +513,6 @@ class ChatRouter:
             )
 
             tx_hash = self.blockchain.send_tx_in_queue()
-            print(f"tx_hash: {tx_hash}")
             return tx_hash
 
     async def handle_attestation(self, _: str) -> dict[str, str]:
