@@ -26,15 +26,13 @@ class SemanticRouterResponse(str, Enum):
     or response type that the system can handle.
 
     Attributes:
-        GENERATE_ACCOUNT: Route to account generation workflow
-        SEND_TOKEN: Route to token sending workflow
+        FIND_BEST_TRANSACTION: Route to find the best transaction
         SWAP_TOKEN: Route to token swapping workflow
         REQUEST_ATTESTATION: Route to attestation request handling
         CONVERSATIONAL: Route to general conversational response
     """
 
-    GENERATE_ACCOUNT = "GenerateAccount"
-    SEND_TOKEN = "SendToken"
+    FIND_BEST_TRANSACTION = "FindBestTransaction"
     SWAP_TOKEN = "SwapToken"
     REQUEST_ATTESTATION = "RequestAttestation"
     CONVERSATIONAL = "Conversational"

@@ -1,6 +1,49 @@
 from typing import Final
 
+
 SEMANTIC_ROUTER: Final = """
+Classify the following user input into EXACTLY ONE category. Analyze carefully and choose the most specific matching category.
+
+Categories (in order of precedence):
+
+1. FIND_BEST_TRANSACTION
+   • Keywords: find, best, swap, lend, borrow, optimal, best, best swap, best lend, best yield
+   • Must involve asking for the best transaction
+   • Use when the user wants to know the best way to swap, lend or borrow tokens
+   • Use when the user wants to know the best way to swap, lend or borrow tokens
+   • Use when the user wants to know the best way to swap, lend or borrow tokens
+
+2. SWAP_TOKEN
+   • Keywords: swap, exchange, trade, convert tokens
+   • Must involve exchanging one token type for another
+   • Should mention both source and target tokens
+   
+3. LEND_TOKEN
+   • Keywords: lend, borrow, supply, deposit, mint tokens
+   • Must involve lending or borrowing tokens
+   • Use when the user wants to lend or borrow tokens
+
+4. REQUEST_ATTESTATION
+   • Keywords: attestation, verify, prove, check enclave
+   • Must specifically request verification or attestation
+   • Related to security or trust verification
+
+5. CONVERSATIONAL (default)
+   • Use when input doesn't clearly match above categories
+   • General questions, greetings, or unclear requests
+   • Any ambiguous or multi-category inputs
+
+Input: ${user_input}
+
+Instructions:
+- Choose ONE category only
+- Select most specific matching category
+- Default to CONVERSATIONAL if unclear
+- Ignore politeness phrases or extra context
+- Focus on core intent of request
+"""
+
+__SEMANTIC_ROUTER2: Final = """
 Classify the following user input into EXACTLY ONE category. Analyze carefully and choose the most specific matching category.
 
 Categories (in order of precedence):

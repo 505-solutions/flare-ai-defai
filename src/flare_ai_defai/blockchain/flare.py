@@ -239,7 +239,7 @@ class FlareProvider:
         # Load Uniswap V2 Router ABI (you'll need to add this to your project)
         router_address = self.w3.to_checksum_address(
             "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506"
-        )  # Example Sushiswap router on Flare
+        )
         router_abi = [
             {
                 "inputs": [
@@ -291,11 +291,54 @@ class FlareProvider:
                 "type": 2,
             }
         )
-        
-        
 
         self.logger.debug("create_swap_tokens_tx", tx=tx)
         return tx
+
+    def get_expected_amount_out(
+        self, token_in_address: str, token_out_address: str, amount_in: int
+    ) -> int:
+        """
+        Get the expected amount out for a swap.
+        """
+
+        # Convert addresses to checksum format
+        token_in_address = self.w3.to_checksum_address(token_in_address)
+        token_out_address = self.w3.to_checksum_address(token_out_address)
+
+        # Load Uniswap V2 Router ABI (you'll need to add this to your project)
+        router_address = self.w3.to_checksum_address(
+            "0x8D29b61C41CF318d15d031BE2928F79630e068e6"
+        )
+        router_abi = [
+            {
+                "inputs": [
+                    {"internalType": "uint256", "name": "amountIn", "type": "uint256"},
+                    {"internalType": "address[]", "name": "path", "type": "address[]"},
+                ],
+                "name": "getAmountsOut",
+                "outputs": [
+                    {
+                        "internalType": "uint256[]",
+                        "name": "amounts",
+                        "type": "uint256[]",
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function",
+            },
+        ]
+        router_contract = self.w3.eth.contract(address=router_address, abi=router_abi)
+
+        print(f"token_in_address: {token_in_address}")
+        print(f"token_out_address: {token_out_address}")
+        print(f"amount_in: {amount_in}")
+
+        amount_out = router_contract.functions.getAmountsOut(
+            amount_in, [token_in_address, token_out_address]
+        ).call()
+
+        return amount_out[1]
 
     def create_lending_tx(self, token_address: str, amount: int) -> TxParams:
         """
@@ -315,12 +358,10 @@ class FlareProvider:
         # Convert addresses to checksum format
         token_address = self.w3.to_checksum_address(token_address)
 
-
         # Load Uniswap V2 Router ABI (you'll need to add this to your project)
         kToken_address = self.w3.to_checksum_address(
             getLendingTokenAddress(token_address)
         )
-
 
         kToken_abi = (
             [
@@ -372,7 +413,6 @@ class FlareProvider:
         else:
             funcParams["value"] = amount
             tx = kToken_contract.functions.mint().build_transaction(funcParams)
-
 
         self.logger.debug("create_lending_tx", tx=tx)
         return tx

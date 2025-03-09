@@ -150,6 +150,7 @@ class ChatRouter:
                     return {"response": resp}
 
                 route = await self.get_semantic_route(message.message)
+
                 return await self.route_message(route, message.message)
 
             except Exception as e:
@@ -194,6 +195,9 @@ class ChatRouter:
             route_response = self.ai.generate(
                 prompt=prompt, response_mime_type=mime_type, response_schema=schema
             )
+
+            print(f"Route response: {route_response.text}")
+
             return SemanticRouterResponse(route_response.text)
         except Exception as e:
             self.logger.exception("routing_failed", error=str(e))
@@ -213,8 +217,7 @@ class ChatRouter:
             dict[str, str]: Response from the appropriate handler
         """
         handlers = {
-            SemanticRouterResponse.GENERATE_ACCOUNT: self.handle_generate_account,
-            SemanticRouterResponse.SEND_TOKEN: self.handle_send_token,
+            SemanticRouterResponse.FIND_BEST_TRANSACTION: self.handle_find_best_transaction,
             SemanticRouterResponse.SWAP_TOKEN: self.handle_swap_token,
             SemanticRouterResponse.REQUEST_ATTESTATION: self.handle_attestation,
             SemanticRouterResponse.CONVERSATIONAL: self.handle_conversation,
@@ -294,49 +297,62 @@ class ChatRouter:
         )
         return {"response": formatted_preview}
 
-    # TODO: ADD A MINT WRAPPED FLR FUNCTION
+    async def handle_find_best_transaction(self, message: str) -> dict[str, str]:
+        """
+        Handle find best transaction requests.
 
-    async def handle_swap_token(self, message: str) -> dict[str, str]:
+        Args:
+            message: Message containing find best transaction details
 
-        print(f"Message: {message}")
+        Returns:
+            dict[str, str]: Response containing transaction preview or follow-up prompt
+        """
 
         answer, shapley_values, response_data = await run_consensus_test(message)
 
-        print(f"Answer: {answer}")
+        return {"response": answer}
 
-        answer = answer.strip()  # Remove whitespace
-        if answer.startswith("\ufeff"):  # BOM character
-            answer = answer[1:]  # Remove it
+    # TODO: ADD A MINT WRAPPED FLR FUNCTION
 
-        print(f"Answer: {answer}")
+    # async def handle_swap_token(self, message: str) -> dict[str, str]:
 
-        answer_json = json.loads(answer)
+    #     print(f"Message: {message}")
 
-        # Extract values
-        operation = answer_json["operation"]
-        token_a = answer_json["token_a"]
-        token_b = answer_json["token_b"]
-        amount = answer_json["amount"]
-        reason = answer_json["reason"]
+    #     answer, shapley_values, response_data = await run_consensus_test(message)
 
-        # Print extracted values
-        print(f"Operation: {operation}")
-        print(f"Token A: {token_a}")
-        print(f"Token B: {token_b}")
-        print(f"Amount: {amount}")
-        print(f"Reason: {reason}")
+    #     print(f"Answer: {answer}")
 
-        # print(f"Answer: {answer}")
-        # print(f"Shapley Values: {shapley_values}")
-        # print(f"Response Data: {response_data}")
+    #     answer = answer.strip()  # Remove whitespace
+    #     if answer.startswith("\ufeff"):  # BOM character
+    #         answer = answer[1:]  # Remove it
 
-        response = await self._handle_swap_token(message, token_a, token_b, amount)
+    #     print(f"Answer: {answer}")
 
-        return {"response": response, "answer": answer_json}
+    #     answer_json = json.loads(answer)
 
-    async def _handle_swap_token(
-        self, message: str, from_token: str, to_token: str, amount: float
-    ) -> dict[str, str]:
+    #     # Extract values
+    #     operation = answer_json["operation"]
+    #     token_a = answer_json["token_a"]
+    #     token_b = answer_json["token_b"]
+    #     amount = int(answer_json["amount"])
+    #     reason = answer_json["reason"]
+
+    #     # Print extracted values
+    #     print(f"Operation: {operation}")
+    #     print(f"Token A: {token_a}")
+    #     print(f"Token B: {token_b}")
+    #     print(f"Amount: {amount}")
+    #     print(f"Reason: {reason}")
+
+    #     # print(f"Answer: {answer}")
+    #     # print(f"Shapley Values: {shapley_values}")
+    #     # print(f"Response Data: {response_data}")
+
+    #     return await self._handle_swap_token(message, token_a, token_b, amount, reason)
+
+    #     # return {"response": response, "answer": answer_json}
+
+    async def handle_swap_token(self, message: str) -> dict[str, str]:
         """
         Handle token swap requests using Uniswap V2 router.
 
@@ -349,33 +365,34 @@ class ChatRouter:
         if not self.blockchain.address:
             await self.handle_generate_account(message)
 
-        # # Parse the swap details from the message
-        # prompt, mime_type, schema = self.prompts.get_formatted_prompt(
-        #     "token_swap", user_input=message
-        # )
+        # Parse the swap details from the message
+        prompt, mime_type, schema = self.prompts.get_formatted_prompt(
+            "token_swap", user_input=message
+        )
 
-        # swap_token_response = self.ai.generate(
-        #     prompt=prompt, response_mime_type=mime_type, response_schema=schema
-        # )
+        swap_token_response = self.ai.generate(
+            prompt=prompt, response_mime_type=mime_type, response_schema=schema
+        )
 
-        # swap_token_json = json.loads(swap_token_response.text)
+        swap_token_json = json.loads(swap_token_response.text)
 
-        # # Validate the parsed swap details
-        # expected_fields = ["amount", "from_token", "to_token"]
-        # if (
-        #     not all(field in swap_token_json for field in expected_fields)
-        #     or swap_token_json.get("amount") == 0.0
-        # ):
-        #     prompt, _, _ = self.prompts.get_formatted_prompt("follow_up_token_swap")
-        #     follow_up_response = self.ai.generate(prompt)
-        #     return {"response": follow_up_response.text}
+        # Validate the parsed swap details
+        expected_fields = ["amount", "from_token", "to_token"]
+        if (
+            not all(field in swap_token_json for field in expected_fields)
+            or swap_token_json.get("amount") == 0.0
+        ):
+            prompt, _, _ = self.prompts.get_formatted_prompt("follow_up_token_swap")
+            follow_up_response = self.ai.generate(prompt)
+            return {"response": follow_up_response.text}
 
         # Create the swap transaction
         try:
-            token_in_address = getTokenAddressForSwap(from_token)
-            token_out_address = getTokenAddressForSwap(to_token)
-            amount_in = amount
-            token_in_decimals = getTokenDecimals(from_token)
+            token_in_address = getTokenAddressForSwap(swap_token_json.get("from_token"))
+            token_out_address = getTokenAddressForSwap(swap_token_json.get("to_token"))
+            amount_in = swap_token_json.get("amount")
+            token_in_decimals = getTokenDecimals(swap_token_json.get("from_token"))
+            token_out_decimals = getTokenDecimals(swap_token_json.get("to_token"))
 
             # Check if we need to approve tokens first
             router_address = "0x8D29b61C41CF318d15d031BE2928F79630e068e6"
@@ -395,12 +412,19 @@ class ChatRouter:
                 amount_out_min=0,
             )
 
+            excpected_out = self.blockchain.get_expected_amount_out(
+                token_in_address=token_in_address,
+                token_out_address=token_out_address,
+                amount_in=amount_in_wei,
+            )
+
             self.logger.debug("swap_token_tx", tx=swap_tx)
             self.blockchain.add_tx_to_queue(msg=message, tx=swap_tx)
 
             formatted_preview = (
                 f"Transaction Preview: Swapping {amount_in} "
-                f"{from_token} for {to_token}\n"
+                f"{swap_token_json.get('from_token')} for approx {excpected_out / (10**token_out_decimals)} "
+                f"{swap_token_json.get('to_token')}\n"
                 "Type CONFIRM to proceed."
             )
             return {"response": formatted_preview}
