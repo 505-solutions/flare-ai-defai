@@ -25,7 +25,7 @@ class ChatMessage(BaseModel):
     user_message: str = Field(..., min_length=1)
 
 def extract_values(text):
-    pattern = r'"operation": "(.*?)", "token_a": "(.*?)", "token_b": "(.*?)", "amount": "(.*?)"'
+    pattern = r'["\']operation["\']: ["\'](.*?)["\'], ["\']token_a["\']: ["\'](.*?)["\'], ["\']token_b["\']: ["\'](.*?)["\'], ["\']amount["\']: ["\'](.*?)["\']'
     match = re.search(pattern, text)
 
     if match:
@@ -101,7 +101,7 @@ class ChatRouter:
                 self.logger.info("Response generated", answer=answer)
 
                 operation = extract_values(answer)
-                return {"response": answer, "shapley_values": json.dumps(shapley_values), "operation": operation, "response_data": response_data}
+                return {"response": answer, "shapley_values": json.dumps(shapley_values), "operation": json.dumps(operation)}
 
     @property
     def router(self) -> APIRouter:

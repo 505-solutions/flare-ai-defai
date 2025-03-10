@@ -1,5 +1,5 @@
 import asyncio
-
+import math
 import structlog
 
 from flare_ai_consensus.consensus.aggregator import (
@@ -14,23 +14,17 @@ logger = structlog.get_logger(__name__)
 
 
 async def run_consensus(
-    provider: AsyncOpenRouterProvider,
-    consensus_config: ConsensusConfig,
-    initial_conversation: list[list[Message]],
-    embedding_model: EmbeddingModel
+        provider: AsyncOpenRouterProvider,
+        consensus_config: ConsensusConfig,
+        initial_conversation: list[list[Message]],
+        embedding_model: EmbeddingModel
 ):
-    """
-    Asynchronously runs the consensus learning loop.
 
-    :param provider: An instance of an AsyncOpenRouterProvider.
-    :param consensus_config: An instance of ConsensusConfig.
-    :param initial_conversation: the input user prompt with system instructions.
-
-    Returns: aggregated response (str)
-    All responses are stored in response_data and can be returned for future use.
-    """
     response_data = {}
     response_data["initial_conversation"] = initial_conversation
+
+    weighted_shapley_values = {}
+    total_weight = 0
 
     # Step 1: Initial round.
     responses = await send_round(
@@ -40,7 +34,9 @@ async def run_consensus(
         embedding_model, responses
     )
 
-    sum_shapley_values = shapley_values
+    initial_weight = 1.0  # Base weight for first iteration
+    weighted_shapley_values = {k: v * initial_weight for k, v in shapley_values.items()}
+    total_weight = initial_weight
 
     logger.info(
         "initial response aggregation complete", aggregated_response=aggregated_response
@@ -48,9 +44,12 @@ async def run_consensus(
 
     response_data["iteration_0"] = responses
     response_data["aggregate_0"] = aggregated_response
+    response_data["shapley_0"] = shapley_values
 
     # Step 2: Improvement rounds.
     for i in range(consensus_config.iterations):
+        decay_factor = 1
+        iteration_weight = math.exp(-decay_factor * (i + 1))
 
         responses = await send_round(
             provider, consensus_config, initial_conversation, aggregated_response
@@ -59,22 +58,30 @@ async def run_consensus(
         aggregated_response, shapley_values = await async_centralized_embedding_aggregator(
             embedding_model, responses
         )
-        
-        sum_shapley_values = {k: sum_shapley_values[k] + shapley_values[k] for k in shapley_values}
+
+        for k, v in shapley_values.items():
+            if k in weighted_shapley_values:
+                weighted_shapley_values[k] += v * iteration_weight
+            else:
+                weighted_shapley_values[k] = v * iteration_weight
+
+        total_weight += iteration_weight
 
         logger.info(
             "responses aggregated",
             iteration=i + 1,
             aggregated_response=aggregated_response,
+            iteration_weight=iteration_weight
         )
 
         response_data[f"iteration_{i + 1}"] = responses
         response_data[f"aggregate_{i + 1}"] = aggregated_response
+        response_data[f"shapley_{i + 1}"] = shapley_values
+        response_data[f"weight_{i + 1}"] = iteration_weight
 
-    
-    average_shapley_values = {k: v / consensus_config.iterations for k, v in sum_shapley_values.items()}
+    normalized_shapley_values = {k: v / total_weight for k, v in weighted_shapley_values.items()}
 
-    return aggregated_response, average_shapley_values, response_data
+    return aggregated_response, normalized_shapley_values, response_data
 
 
 def _build_improvement_conversation(
