@@ -107,11 +107,9 @@ def calculate_shapley_values(embeddings_dict: dict[str, np.ndarray]) -> dict[str
     embeddings = np.array([embeddings_dict[model] for model in models])
     N = len(models)
 
-    normalized_embeddings = embeddings / np.linalg.norm(embeddings, axis=1, keepdims=True)
-
     # Apply DBSCAN clustering
-    dbscan = DBSCAN(eps=0.2, min_samples=max(2, int(N * 0.1)))
-    cluster_labels = dbscan.fit_predict(normalized_embeddings)
+    dbscan = DBSCAN(eps=0.3, min_samples=max(2, int(N * 0.1)))
+    cluster_labels = dbscan.fit_predict(embeddings)
 
     # Identify the main cluster (largest cluster)
     cluster_counts = Counter(cluster_labels)
@@ -125,6 +123,11 @@ def calculate_shapley_values(embeddings_dict: dict[str, np.ndarray]) -> dict[str
 
     # Get the largest cluster
     main_cluster_label = cluster_counts.most_common(1)[0][0]
+
+    # print models in main cluster
+    main_cluster_indices = [i for i, label in enumerate(cluster_labels) if label == main_cluster_label]
+    main_cluster_models = [models[i] for i in main_cluster_indices]
+    print("Models in main cluster:", main_cluster_models)
 
     def utility(coalition):
         if not coalition:

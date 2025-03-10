@@ -28,6 +28,7 @@ class ModelConfig(BaseModel):
     temperature: float = 0.7
     public_key: str = ""
     system_prompt: str = ""
+    improvement_prompt: str | None = None
 
 
 class AggregatorConfig(BaseModel):
@@ -59,6 +60,7 @@ class ConsensusConfig(BaseModel):
                 temperature=m["temperature"],
                 public_key=m["public_key"],
                 system_prompt=m["system_prompt"],
+                improvement_prompt=m.get("improvement_prompt"),
             )
             for m in json_data.get("models", [])
         ]

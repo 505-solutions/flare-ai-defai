@@ -59,6 +59,7 @@ from typing import Literal, TypedDict
 import structlog
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from flare_ai_consensus.settings import ConsensusConfig, ModelConfig, AggregatorConfig
 
 logger = structlog.get_logger(__name__)
 
@@ -73,74 +74,6 @@ def create_path(folder_name: str) -> Path:
 class Message(TypedDict):
     role: str
     content: str
-
-
-class ModelConfig(BaseModel):
-    """Configuration for individual models"""
-
-    model_id: str
-    max_tokens: int = 50
-    temperature: float = 0.7
-    public_key: str = ""
-    system_prompt: str = ""
-
-
-class AggregatorConfig(BaseModel):
-    """Configuration for the aggregator"""
-
-    model: ModelConfig
-    approach: str
-    context: list[Message]
-    prompt: list[Message]
-
-
-class ConsensusConfig(BaseModel):
-    """Configuration for the consensus mechanism"""
-
-    models: list[ModelConfig]
-    aggregator_config: AggregatorConfig
-    improvement_prompt: str
-    iterations: int
-    aggregated_prompt_type: Literal["user", "assistant", "system"]
-
-    @classmethod
-    def from_json(cls, json_data: dict) -> "ConsensusConfig":
-        """Create ConsensusConfig from JSON data"""
-        # Parse the list of models
-        models = [
-            ModelConfig(
-                model_id=m["id"],
-                max_tokens=m["max_tokens"],
-                temperature=m["temperature"],
-                public_key=m["public_key"],
-                system_prompt=m["system_prompt"],
-            )
-            for m in json_data.get("models", [])
-        ]
-
-        # Parse the aggregator configuration
-        aggr_data = json_data.get("aggregator", [])[0]
-        aggr_model_data = aggr_data.get("model", {})
-        aggregator_model = ModelConfig(
-            model_id=aggr_model_data["id"],
-            max_tokens=aggr_model_data["max_tokens"],
-            temperature=aggr_model_data["temperature"],
-        )
-
-        aggregator_config = AggregatorConfig(
-            model=aggregator_model,
-            approach=aggr_data.get("approach", ""),
-            context=aggr_data.get("aggregator_context", []),
-            prompt=aggr_data.get("aggregator_prompt", []),
-        )
-
-        return cls(
-            models=models,
-            aggregator_config=aggregator_config,
-            improvement_prompt=json_data.get("improvement_prompt", ""),
-            iterations=json_data.get("iterations", 1),
-            aggregated_prompt_type=json_data.get("aggregated_prompt_type", "system"),
-        )
 
 
 class Settings(BaseSettings):

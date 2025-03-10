@@ -85,6 +85,7 @@ async def run_consensus(
 
 
 def _build_improvement_conversation(
+    model: ModelConfig,
     consensus_config: ConsensusConfig,
     initial_conversation: list[Message],
     aggregated_response: str,
@@ -108,8 +109,9 @@ def _build_improvement_conversation(
 
     # Add new prompt as "user" message
     conversation.append(
-        {"role": "user", "content": consensus_config.improvement_prompt}
+        {"role": "user", "content": consensus_config.improvement_prompt if model.improvement_prompt is None else model.improvement_prompt}
     )
+
     return conversation
 
 
@@ -138,7 +140,7 @@ async def _get_response_for_model(
     else:
         # Build the improvement conversation.
         conversation = _build_improvement_conversation(
-            consensus_config, initial_conversation, aggregated_response
+            model, consensus_config, initial_conversation, aggregated_response
         )
         logger.info("sending improvement prompt", model_id=model.model_id)
 
