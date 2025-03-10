@@ -125,13 +125,14 @@ def calculate_shapley_values(embeddings_dict: dict[str, np.ndarray]) -> dict[str
 async def async_centralized_embedding_aggregator(
     embedding_model: EmbeddingModel,
     responses: dict[str, str],
-) -> str:
+):
     if not responses:
-        return ""
+        raise ValueError("Responses are empty")
+        # return ""
 
-    if len(responses) == 1:
-        # If there's only one response, return it directly
-        return list(responses.values())[0]
+    # if len(responses) == 1:
+    #     # If there's only one response, return it directly
+    #     return list(responses.values())[0]
 
     # Get embeddings for each response
     embeddings_dict = await _get_embeddings_for_responses(embedding_model, responses)
