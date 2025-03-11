@@ -13,7 +13,7 @@ Dependencies:
 """
 
 import structlog
-from fastapi import FastAPI
+from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 
 from flare_ai_defai import (
@@ -24,6 +24,12 @@ from flare_ai_defai import (
     Vtpm,
 )
 from flare_ai_defai.settings import settings
+
+from flare_ai_consensus.utils import load_json
+from flare_ai_consensus.router import AsyncOpenRouterProvider
+from flare_ai_consensus.embeddings import EmbeddingModel
+
+
 
 logger = structlog.get_logger(__name__)
 
@@ -75,8 +81,27 @@ def create_app() -> FastAPI:
         prompts=PromptService(),
     )
 
+    from flare_ai_defai.api.routes.chat import ModelRouter
+
+    config_json = load_json(settings.input_path / "input.json")
+    settings.load_consensus_config(config_json)
+
+    # Initialize the OpenRouter provider.
+    provider = AsyncOpenRouterProvider(
+        api_key=settings.open_router_api_key, base_url=settings.open_router_base_url
+    )
+
+    embedding_model = EmbeddingModel(
+        api_key=settings.gemini_embedding_key, base_url=settings.open_router_base_url
+    )
+
+    model_router = ModelRouter(
+        router=APIRouter(),
+        consensus_config=settings.consensus_config,
+    )
     # Register chat routes with API
-    app.include_router(chat.router, prefix="/api/routes/chat", tags=["chat"])
+    app.include_router(chat.router, prefix="/api/routes", tags=["chat"])
+    app.include_router(model_router.router, prefix="/api/routes", tags=["model"])
     return app
 
 

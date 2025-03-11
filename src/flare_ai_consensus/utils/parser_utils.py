@@ -1,6 +1,9 @@
 def parse_chat_response(response: dict) -> str:
     """Parse response from chat completion endpoint"""
-    return response.get("choices", [])[0].get("message", {}).get("content", "")
+    try:
+        return response.get("choices", [])[0].get("message", {}).get("content", "")
+    except IndexError as e:
+        raise ValueError("No response from chat completion", e, response)
 
 
 def extract_author(model_id: str) -> tuple[str, str]:
