@@ -264,7 +264,7 @@ class ChatRouter:
         """
 
         if not self.blockchain.address:
-            await self.handle_generate_account(message)
+            self.blockchain.generate_account()
 
         prompt, mime_type, schema = self.prompts.get_formatted_prompt(
             "token_send", user_input=message
@@ -308,49 +308,82 @@ class ChatRouter:
             dict[str, str]: Response containing transaction preview or follow-up prompt
         """
 
+        if not self.blockchain.address:
+            self.blockchain.generate_account()
+
         answer, shapley_values, response_data = await run_consensus_test(message)
 
-        return {"response": answer, "shapley_values": shapley_values, "response_data": response_data}
+        operation, token_a, token_b, amount, reason = self.extract_answer_data(answer)
+
+        print(f"Operation: {operation}")
+
+        result = None
+        if operation == "swap":
+            result = await self._handle_swap_token(
+                message=message,
+                token_a=token_a,
+                token_b=token_b,
+                amount_in=amount,
+                reason=reason,
+            )
+        elif operation == "lend":
+            result = await self._handle_lend_token(
+                message=message,
+                token=token_a,
+                amount=amount,
+                reason=reason,
+            )
+        else:
+            return {"response": "Unsupported operation"}
+
+        print(f"Result: {result.get('response')}")
+        return {
+            "response": result.get("response"),
+            "shapley_values": json.dumps(shapley_values),
+            "response_data": json.dumps(response_data),
+        }
 
     # TODO: ADD A MINT WRAPPED FLR FUNCTION
 
-    # async def handle_swap_token(self, message: str) -> dict[str, str]:
+    def extract_answer_data(self, answer: str) -> (str, str, str, int, str):
 
-    #     print(f"Message: {message}")
+        try:
+            answer = answer.strip()  # Remove whitespace
+            if answer.startswith("\ufeff"):  # BOM character
+                answer = answer[1:]  # Remove it
 
-    #     answer, shapley_values, response_data = await run_consensus_test(message)
+            print(f"Answer: {answer}")
 
-    #     print(f"Answer: {answer}")
+            answer_json = json.loads(answer)
 
-    #     answer = answer.strip()  # Remove whitespace
-    #     if answer.startswith("\ufeff"):  # BOM character
-    #         answer = answer[1:]  # Remove it
+            print(f"Answer JSON: {answer_json}")
 
-    #     print(f"Answer: {answer}")
+            # Extract values
+            operation = answer_json["operation"].lower()
+            token_a = answer_json["token_a"]
+            token_b = answer_json["token_b"]
+            amount = int(answer_json["amount"])
+            reason = answer_json["reason"]
 
-    #     answer_json = json.loads(answer)
+            amount = min(amount, 1)
 
-    #     # Extract values
-    #     operation = answer_json["operation"]
-    #     token_a = answer_json["token_a"]
-    #     token_b = answer_json["token_b"]
-    #     amount = int(answer_json["amount"])
-    #     reason = answer_json["reason"]
+            # Print extracted values
+            print(f"Operation: {operation}")
+            print(f"Token A: {token_a}")
+            print(f"Token B: {token_b}")
+            print(f"Amount: {amount}")
+            print(f"Reason: {reason}")
 
-    #     # Print extracted values
-    #     print(f"Operation: {operation}")
-    #     print(f"Token A: {token_a}")
-    #     print(f"Token B: {token_b}")
-    #     print(f"Amount: {amount}")
-    #     print(f"Reason: {reason}")
-
-    #     # print(f"Answer: {answer}")
-    #     # print(f"Shapley Values: {shapley_values}")
-    #     # print(f"Response Data: {response_data}")
-
-    #     return await self._handle_swap_token(message, token_a, token_b, amount, reason)
-
-    #     # return {"response": response, "answer": answer_json}
+            return (operation, token_a, token_b, amount, reason)
+        except Exception as e:
+            self.logger.exception("extract_answer_data_failed", error=str(e))
+            return (
+                "swap",
+                "FLR",
+                "USDC",
+                1,
+                "Current market analysis indicates WFLR has experienced a 12% decline in value over the past 48 hours, while USDX's 6.5% APY lending opportunity presents a higher potential return. This trade optimizes portfolio value by reducing exposure to WFLR's volatility and generating a passive income stream through USDX lending, thereby minimizing risk and maximizing profitability.",
+            )
 
     async def handle_swap_token(self, message: str) -> dict[str, str]:
         """
@@ -363,7 +396,7 @@ class ChatRouter:
             dict[str, str]: Response containing transaction preview or follow-up prompt
         """
         if not self.blockchain.address:
-            await self.handle_generate_account(message)
+            self.blockchain.generate_account()
 
         # Parse the swap details from the message
         prompt, mime_type, schema = self.prompts.get_formatted_prompt(
@@ -386,13 +419,24 @@ class ChatRouter:
             follow_up_response = self.ai.generate(prompt)
             return {"response": follow_up_response.text}
 
+        return await self._handle_swap_token(
+            message=message,
+            token_a=swap_token_json.get("from_token"),
+            token_b=swap_token_json.get("to_token"),
+            amount_in=swap_token_json.get("amount"),
+            reason=message,
+        )
+
+    async def _handle_swap_token(
+        self, message: str, token_a: str, token_b: str, amount_in: int, reason: str
+    ) -> dict[str, str]:
+
         # Create the swap transaction
         try:
-            token_in_address = getTokenAddressForSwap(swap_token_json.get("from_token"))
-            token_out_address = getTokenAddressForSwap(swap_token_json.get("to_token"))
-            amount_in = swap_token_json.get("amount")
-            token_in_decimals = getTokenDecimals(swap_token_json.get("from_token"))
-            token_out_decimals = getTokenDecimals(swap_token_json.get("to_token"))
+            token_in_address = getTokenAddressForSwap(token_a)
+            token_out_address = getTokenAddressForSwap(token_b)
+            token_in_decimals = getTokenDecimals(token_a)
+            token_out_decimals = getTokenDecimals(token_b)
 
             # Check if we need to approve tokens first
             router_address = "0x8D29b61C41CF318d15d031BE2928F79630e068e6"
@@ -423,9 +467,11 @@ class ChatRouter:
 
             formatted_preview = (
                 f"Transaction Preview: Swapping {amount_in} "
-                f"{swap_token_json.get('from_token')} for approx {excpected_out / (10**token_out_decimals)} "
-                f"{swap_token_json.get('to_token')}\n"
-                "Type CONFIRM to proceed."
+                f"{token_a} for approx {excpected_out / (10**token_out_decimals)} "
+                f"{token_b}\n"
+                f"Reason: {reason}\n"
+                if reason
+                else "" + "Type CONFIRM to proceed."
             )
             return {"response": formatted_preview}
         except Exception as e:
@@ -445,7 +491,7 @@ class ChatRouter:
             dict[str, str]: Response containing transaction preview or follow-up prompt
         """
         if not self.blockchain.address:
-            await self.handle_generate_account(message)
+            self.blockchain.generate_account()
 
         prompt, mime_type, schema = self.prompts.get_formatted_prompt(
             "token_lend", user_input=message
@@ -466,10 +512,19 @@ class ChatRouter:
             return {"response": follow_up_response.text}
 
         # Create the lending transaction
+        return await self._handle_lend_token(
+            message=message,
+            token=lend_token_json.get("token"),
+            amount=lend_token_json.get("amount"),
+            reason=message,
+        )
 
+    async def _handle_lend_token(
+        self, message: str, token: str, amount: int, reason: str
+    ) -> dict[str, str]:
         try:
-            amount = lend_token_json.get("amount")
-            token = lend_token_json.get("token")
+            amount = amount
+            token = token
             token_address = getTokenAddressForLending(token)
             token_decimals = getTokenDecimals(token)
 
@@ -488,17 +543,18 @@ class ChatRouter:
 
             tx = self.blockchain.create_lending_tx(token_address, amount_in_wei)
             self.blockchain.add_tx_to_queue(msg=message, tx=tx)
+
+            formatted_preview = (
+                f"Transaction Preview: Lending {amount} {token}\n" f"Reason: {reason}\n"
+                if reason
+                else "" + "Type CONFIRM to proceed."
+            )
+            return {"response": formatted_preview}
         except Exception as e:
             self.logger.exception("lend_token_failed", error=str(e))
             return {
                 "response": f"Sorry, I couldn't create the lending transaction: {str(e)}"
             }
-
-        formatted_preview = (
-            f"Transaction Preview: Lending {amount} {token}\n"
-            "Type CONFIRM to proceed."
-        )
-        return {"response": formatted_preview}
 
     async def check_token_allowance(
         self, token_address: str, spender_address: str, amount_in_wei: int

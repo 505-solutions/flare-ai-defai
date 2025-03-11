@@ -113,6 +113,7 @@ class FlareProvider:
         Returns:
             ChecksumAddress: The checksum address of the generated account
         """
+
         if private_key:
             # Use provided private key
             if not private_key.startswith("0x"):
