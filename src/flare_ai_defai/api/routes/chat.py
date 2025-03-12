@@ -448,18 +448,26 @@ class ChatRouter:
                 amount_in_wei=amount_in_wei,
             )
 
+            excpected_out = self.blockchain.get_expected_amount_out(
+                token_in_address=token_in_address,
+                token_out_address=token_out_address,
+                amount_in=amount_in_wei,
+            )
+
+            # Calculate the minimum amount out, using integer division for flooring
+            amount_out_min = excpected_out // 10
+
             # Create the swap transaction
             swap_tx = self.blockchain.create_swap_tokens_tx(
                 token_in_address=token_in_address,
                 token_out_address=token_out_address,
                 amount_in=amount_in_wei,
-                amount_out_min=0,
+                amount_out_min=amount_out_min,
+                router_address=router_address,
             )
 
-            excpected_out = self.blockchain.get_expected_amount_out(
-                token_in_address=token_in_address,
-                token_out_address=token_out_address,
-                amount_in=amount_in_wei,
+            print(
+                f"Swap tx: {token_in_address} {token_out_address} {amount_in_wei} {amount_out_min}"
             )
 
             self.logger.debug("swap_token_tx", tx=swap_tx)
@@ -638,9 +646,9 @@ router = APIRouter()
 # expose this function to the API
 class ModelRouter:
     def __init__(
-            self,
-            router: APIRouter,
-            consensus_config: ConsensusConfig | None = None,
+        self,
+        router: APIRouter,
+        consensus_config: ConsensusConfig | None = None,
     ) -> None:
         self._router = router
         if consensus_config:
@@ -663,7 +671,10 @@ class ModelRouter:
 
         @self._router.post("/list-agents")
         async def list_agents():
-            return [{"id": i, "model_id": model.model_id, "public_key": model.public_key} for i, model in enumerate(self.consensus_config.models)]
+            return [
+                {"id": i, "model_id": model.model_id, "public_key": model.public_key}
+                for i, model in enumerate(self.consensus_config.models)
+            ]
 
     @property
     def router(self) -> APIRouter:

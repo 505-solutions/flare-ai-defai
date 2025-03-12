@@ -211,6 +211,7 @@ class FlareProvider:
         token_out_address: str,
         amount_in: int,
         amount_out_min: int,
+        router_address: str,
         deadline_seconds: int = 600,  # 10 minutes by default
     ) -> TxParams:
         """
@@ -238,9 +239,7 @@ class FlareProvider:
         token_out_address = self.w3.to_checksum_address(token_out_address)
 
         # Load Uniswap V2 Router ABI (you'll need to add this to your project)
-        router_address = self.w3.to_checksum_address(
-            "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506"
-        )
+        router_address = self.w3.to_checksum_address(router_address)
         router_abi = [
             {
                 "inputs": [
@@ -275,7 +274,12 @@ class FlareProvider:
         swap_function = router_contract.functions.swapExactTokensForTokens(
             amount_in,
             amount_out_min,
-            [token_in_address, token_out_address],  # Path
+            [
+                token_in_address,
+                "0xAA6184134059391693f85D74b53ab614e279fBc3",
+                "0x7F720688AC040Bf03Bc86aDeD8Ef4fdB3eA47f0f",
+                token_out_address,
+            ],  # Path
             self.address,  # To address (recipient)
             deadline,
         )
@@ -285,7 +289,7 @@ class FlareProvider:
             {
                 "from": self.address,
                 "nonce": self.w3.eth.get_transaction_count(self.address),
-                "gas": 200000,  # Estimate gas or use gas estimation
+                "gas": 3000000,  # Estimate gas or use gas estimation
                 "maxFeePerGas": self.w3.eth.gas_price,
                 "maxPriorityFeePerGas": self.w3.eth.max_priority_fee,
                 "chainId": self.w3.eth.chain_id,
@@ -515,7 +519,7 @@ class FlareProvider:
             {
                 "from": self.address,
                 "nonce": self.w3.eth.get_transaction_count(self.address),
-                "gas": 100000,  # Estimate gas or use gas estimation
+                "gas": 1000000,  # Estimate gas or use gas estimation
                 "maxFeePerGas": self.w3.eth.gas_price,
                 "maxPriorityFeePerGas": self.w3.eth.max_priority_fee,
                 "chainId": self.w3.eth.chain_id,
