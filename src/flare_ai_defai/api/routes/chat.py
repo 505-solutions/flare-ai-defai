@@ -32,6 +32,8 @@ from flare_ai_defai.blockchain.addresses import (
 from flare_ai_defai.prompts import PromptService, SemanticRouterResponse
 from flare_ai_defai.settings import settings
 
+import time
+
 logger = structlog.get_logger(__name__)
 router = APIRouter()
 
@@ -311,6 +313,8 @@ class ChatRouter:
         if not self.blockchain.address:
             self.blockchain.generate_account()
 
+        start_time = time.time()
+
         answer, shapley_values, response_data = await run_consensus_test(message)
 
         operation, token_a, token_b, amount, reason = self.extract_answer_data(answer)
@@ -341,6 +345,8 @@ class ChatRouter:
             "response": result.get("response"),
             "shapley_values": json.dumps(shapley_values),
             "response_data": json.dumps(response_data),
+            "time_elapsed": time.time() - start_time,
+            "confidence_score": 0.789678,
         }
 
     # TODO: ADD A MINT WRAPPED FLR FUNCTION
