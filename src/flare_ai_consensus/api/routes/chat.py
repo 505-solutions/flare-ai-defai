@@ -87,7 +87,7 @@ class ChatRouter:
                     ])
 
                 # Run consensus algorithm
-                answer, shapley_values, response_data = await run_consensus(
+                answer, shapley_values, response_data, confidence = await run_consensus(
                     self.provider,
                     self.consensus_config,
                     initial_conversations,
@@ -101,7 +101,7 @@ class ChatRouter:
                 self.logger.info("Response generated", answer=answer)
 
                 operation = extract_values(answer)
-                return {"response": answer, "shapley_values": json.dumps(shapley_values), "operation": json.dumps(operation)}
+                return {"response": answer, "shapley_values": json.dumps(shapley_values), "operation": json.dumps(operation), "confidence_score": confidence}
 
     @property
     def router(self) -> APIRouter:

@@ -316,7 +316,7 @@ class ChatRouter:
 
         start_time = time.time()
 
-        answer, shapley_values, response_data = await run_consensus_test(message)
+        answer, shapley_values, response_data, confidence = await run_consensus_test(message)
 
         operation, token_a, token_b, amount, reason = self.extract_answer_data(answer)
 
@@ -347,7 +347,7 @@ class ChatRouter:
             "shapley_values": json.dumps(shapley_values),
             "response_data": json.dumps(response_data),
             "time_elapsed": str(time.time() - start_time),
-            "confidence_score": str(0.789678),
+            "confidence_score": str(confidence),
         }
 
     # TODO: ADD A MINT WRAPPED FLR FUNCTION

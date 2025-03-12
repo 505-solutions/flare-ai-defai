@@ -2,6 +2,7 @@ import time
 import requests
 import pandas as pd
 
+
 class FTSOFeed:
     def __init__(self):
 
@@ -70,7 +71,7 @@ class FTSOFeed:
     def _fetch_flare_feed(self, feed_name, from_ts, to_ts):
         url = f"https://flare-systems-explorer.flare.network/backend-url/api/v0/fast_updates_feed"
         params = {
-            "feed_name": self.feed_list[feed_name][2:], # if feed name is not in the list we should do 2 fetches and then convert eg PENGU/USDC = PENGU/USD * USD/USDC
+            "feed_name": self.feed_list[feed_name][2:],
             "from_ts": from_ts,
             "to_ts": to_ts,
         }
@@ -91,29 +92,28 @@ class FTSOFeed:
 
         df['datetime'] = pd.to_datetime(df['timestamp'], unit='s')
 
-        min_price = df['value'].min()
-        max_price = df['value'].max()
-        mean_price = df['value'].mean()
-        median_price = df['value'].median()
-        std_dev = df['value'].std()
-        price_range = max_price - min_price
-        price_volatility = std_dev / mean_price * 100
+        min_price = round(df['value'].min(), 2)
+        max_price = round(df['value'].max(), 2)
+        mean_price = round(df['value'].mean(), 2)
+        median_price = round(df['value'].median(), 2)
+        std_dev = round(df['value'].std(), 2)
+        price_range = round(max_price - min_price, 2)
+        price_volatility = round(std_dev / mean_price * 100, 2)
 
-        df['price_change'] = df['value'].diff()
-        df['percent_change'] = df['price_change'] / df['value'].shift(1) * 100
+        df['price_change'] = df['value'].diff().round(2)
+        df['percent_change'] = (df['price_change'] / df['value'].shift(1) * 100).round(2)
 
-        max_positive_change = df['percent_change'].max()
-        max_negative_change = df['percent_change'].min()
+        max_positive_change = round(df['percent_change'].max(), 2)
+        max_negative_change = round(df['percent_change'].min(), 2)
 
-        time_span = (df['timestamp'].max() - df['timestamp'].min()) / 60
-        avg_time_between_updates = df['timestamp'].diff().mean()
+        time_span = round((df['timestamp'].max() - df['timestamp'].min()) / 60, 2)
 
         window_size = 5
-        df['sma'] = df['value'].rolling(window=window_size).mean()
+        df['sma'] = df['value'].rolling(window=window_size).mean().round(2)
 
-        first_price = df['value'].iloc[0]
-        last_price = df['value'].iloc[-1]
-        overall_change = ((last_price - first_price) / first_price) * 100
+        first_price = round(df['value'].iloc[0], 2)
+        last_price = round(df['value'].iloc[-1], 2)
+        overall_change = round(((last_price - first_price) / first_price) * 100, 2)
 
         if overall_change > 0.1:
             trend = "Upward"
@@ -143,17 +143,5 @@ class FTSOFeed:
                 "max_negative_change_percent": max_negative_change,
                 "overall_trend": trend,
                 "overall_change_percent": overall_change
-            },
-            "feed_metrics": {
-                "data_points": len(df),
-                "avg_seconds_between_updates": avg_time_between_updates,
-                "block_range": [df['block'].min(), df['block'].max()]
             }
         }
-
-
-from_ts = int(time.time()) - 3600
-to_ts = int(time.time())
-
-feed = FTSOFeed()
-print(feed.get_feed_analytics("FLR/USD", from_ts, to_ts))

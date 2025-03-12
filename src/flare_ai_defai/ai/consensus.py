@@ -8,7 +8,7 @@ from flare_ai_consensus.embeddings import EmbeddingModel
 
 async def run_consensus_test(
     message: str,
-) -> tuple[str, dict, dict]:
+) -> tuple[str, dict, dict, float]:
 
     # Load input configuration.
     config_json = load_json(settings.input_path / "input.json")
@@ -36,11 +36,11 @@ async def run_consensus_test(
         )
 
     # Run consensus algorithm
-    answer, shapley_values, response_data = await run_consensus(
+    answer, shapley_values, response_data, confidence = await run_consensus(
         provider,
         settings.consensus_config,
         initial_conversations,
         embedding_model,
     )
 
-    return answer, shapley_values, response_data
+    return answer, shapley_values, response_data, confidence
