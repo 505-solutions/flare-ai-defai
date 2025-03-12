@@ -345,8 +345,8 @@ class ChatRouter:
             "response": result.get("response"),
             "shapley_values": json.dumps(shapley_values),
             "response_data": json.dumps(response_data),
-            "time_elapsed": time.time() - start_time,
-            "confidence_score": 0.789678,
+            "time_elapsed": str(time.time() - start_time),
+            "confidence_score": str(0.789678),
         }
 
     # TODO: ADD A MINT WRAPPED FLR FUNCTION
