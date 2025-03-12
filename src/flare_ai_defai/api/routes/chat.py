@@ -124,6 +124,7 @@ class ChatRouter:
                     or "approve" in self.blockchain.tx_queue[-1].msg.lower()
                 ):
                     try:
+                        start_time = time.time()
                         tx_hash = self.blockchain.send_tx_in_queue()
                     except Web3RPCError as e:
                         self.logger.exception("send_tx_failed", error=str(e))
@@ -142,7 +143,7 @@ class ChatRouter:
                         response_mime_type=mime_type,
                         response_schema=schema,
                     )
-                    return {"response": tx_confirmation_response.text}
+                    return {"response": tx_confirmation_response.text, "time_elapsed": str(time.time() - start_time)}
                 if self.attestation.attestation_requested:
                     try:
                         resp = self.attestation.get_token([message.message])
@@ -634,8 +635,10 @@ class ChatRouter:
         Returns:
             dict[str, str]: Response from AI provider
         """
+
+        start_time = time.time()
         response = self.ai.send_message(message)
-        return {"response": response.text}
+        return {"response": response.text, "time_elapsed": str(time.time() - start_time)}
 
 
 # implement code for adding an agent to the system (to consensus_config)
