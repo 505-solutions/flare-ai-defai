@@ -101,7 +101,7 @@ class ChatRouter:
                 self.logger.info("Response generated", answer=answer)
 
                 operation = extract_values(answer)
-                return {"response": answer, "shapley_values": json.dumps(shapley_values), "operation": json.dumps(operation), "confidence_score": confidence}
+                return {"response": answer, "shapley_values": json.dumps(shapley_values), "operation": json.dumps(operation), "confidence_scores": confidence}
 
     @property
     def router(self) -> APIRouter:

@@ -8,7 +8,7 @@ from flare_ai_consensus.embeddings import EmbeddingModel
 
 async def run_consensus_test(
     message: str,
-) -> tuple[str, dict, dict, float]:
+) -> tuple[str, dict, dict, list[float]]:
 
     # Load input configuration.
     config_json = load_json(settings.input_path / "input.json")

@@ -21,7 +21,7 @@ async def run_consensus(
         consensus_config: ConsensusConfig,
         initial_conversation: list[list[Message]],
         embedding_model: EmbeddingModel
-) -> tuple[str, dict, dict, float]:
+) -> tuple[str, dict, dict, list[float]]:
 
     response_data = {}
     response_data["initial_conversation"] = initial_conversation
@@ -45,13 +45,16 @@ async def run_consensus(
             }
         )
 
+    confidences = []
+
     # Step 1: Initial round.
     responses = await send_round(
         provider, consensus_config, response_data["initial_conversation"]
     )
-    aggregated_response, shapley_values, _ = await async_centralized_embedding_aggregator(
+    aggregated_response, shapley_values, confidence = await async_centralized_embedding_aggregator(
         embedding_model, responses
     )
+    confidences.append(confidence)
 
     initial_weight = 1.0  # Base weight for first iteration
     weighted_shapley_values = {k: v * initial_weight for k, v in shapley_values.items()}
@@ -65,8 +68,6 @@ async def run_consensus(
     response_data["aggregate_0"] = aggregated_response
     response_data["shapley_0"] = shapley_values
 
-    confidence = 0
-
     # Step 2: Improvement rounds.
     for i in range(consensus_config.iterations):
         decay_factor = 1
@@ -79,6 +80,7 @@ async def run_consensus(
         aggregated_response, shapley_values, confidence = await async_centralized_embedding_aggregator(
             embedding_model, responses
         )
+        confidences.append(confidence)
 
         for k, v in shapley_values.items():
             if k in weighted_shapley_values:
@@ -102,7 +104,7 @@ async def run_consensus(
 
     normalized_shapley_values = {k: v / total_weight for k, v in weighted_shapley_values.items()}
 
-    return aggregated_response, normalized_shapley_values, response_data, confidence
+    return aggregated_response, normalized_shapley_values, response_data, confidences
 
 
 def _build_improvement_conversation(
