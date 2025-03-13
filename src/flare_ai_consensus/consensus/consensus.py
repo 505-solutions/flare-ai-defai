@@ -1,6 +1,5 @@
 import asyncio
 import math
-import time
 
 import structlog
 
@@ -11,10 +10,8 @@ from flare_ai_consensus.embeddings import EmbeddingModel
 from flare_ai_consensus.router import AsyncOpenRouterProvider, ChatRequest
 from flare_ai_consensus.settings import ConsensusConfig, Message, ModelConfig
 from flare_ai_consensus.utils import parse_chat_response
-from flare_ai_consensus.ftso_feed import FTSOFeed
 
 logger = structlog.get_logger(__name__)
-
 
 async def run_consensus(
         provider: AsyncOpenRouterProvider,
@@ -25,26 +22,6 @@ async def run_consensus(
 
     response_data = {}
     response_data["initial_conversation"] = initial_conversation
-
-    weighted_shapley_values = {}
-    total_weight = 0
-
-    # to make everything faster
-    from_ts = int(time.time()) - 3600 * 8
-    to_ts = int(time.time())
-
-    feed = FTSOFeed()
-    flr_usd_feed = feed.get_feed_analytics("FLR/USD", from_ts, to_ts)
-    usdc_usd_feed = feed.get_feed_analytics("USDC/USD", from_ts, to_ts)
-
-    for conversation in initial_conversation:
-        conversation.append(
-            {
-                "role": "assistant",
-                "content": f"Price feeds: {flr_usd_feed}, {usdc_usd_feed}",
-            }
-        )
-
     confidences = []
 
     # Step 1: Initial round.

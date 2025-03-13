@@ -34,6 +34,8 @@ from flare_ai_defai.settings import settings
 
 import time
 
+from flare_ai_consensus.utils.parser_utils import extract_values
+
 logger = structlog.get_logger(__name__)
 router = APIRouter()
 
@@ -316,7 +318,7 @@ class ChatRouter:
 
         start_time = time.time()
 
-        answer, shapley_values, response_data, confidence = await run_consensus_test(message)
+        answer, shapley_values, response_data, confidence = await run_consensus_test(message, self.blockchain.address)
 
         operation, token_a, token_b, amount, reason = self.extract_answer_data(answer)
 
@@ -355,22 +357,15 @@ class ChatRouter:
     def extract_answer_data(self, answer: str) -> (str, str, str, int, str):
 
         try:
-            answer = answer.strip()  # Remove whitespace
-            if answer.startswith("\ufeff"):  # BOM character
-                answer = answer[1:]  # Remove it
-
-            print(f"Answer: {answer}")
-
-            answer_json = json.loads(answer)
-
-            print(f"Answer JSON: {answer_json}")
+            answer_obj = extract_values(answer)
+            print(f"Answer object: {answer_obj}")
 
             # Extract values
-            operation = answer_json["operation"].lower()
-            token_a = answer_json["token_a"]
-            token_b = answer_json["token_b"]
-            amount = int(answer_json["amount"])
-            reason = answer_json["reason"]
+            operation = answer_obj["operation"].lower()
+            token_a = answer_obj["token_a"]
+            token_b = answer_obj["token_b"]
+            amount = float(answer_obj["amount"])
+            reason = answer_obj["reason"]
 
             amount = min(amount, 1)
 

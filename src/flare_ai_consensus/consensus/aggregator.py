@@ -1,14 +1,15 @@
-from flare_ai_consensus.embeddings import EmbeddingModel
-
+import math
+from collections import Counter
+from itertools import combinations
 from math import factorial
-import re
 
 import numpy as np
-from sklearn.cluster import DBSCAN
-from itertools import combinations
-from collections import Counter
 import scipy.spatial.distance as distance
+from sklearn.cluster import DBSCAN
 from sklearn.metrics.pairwise import cosine_similarity
+
+from flare_ai_consensus.embeddings import EmbeddingModel
+from flare_ai_consensus.utils.parser_utils import extract_values
 
 
 def _concatenate_aggregator(responses: dict[str, str]) -> str:
@@ -40,7 +41,11 @@ async def async_centralized_embedding_aggregator(
     shapley_values, main_cluster_models = calculate_shapley_values(embeddings_dict)
 
     # Calculate confidence scores
+    print("Models in main cluster:", main_cluster_models)
     confidence_score = await calculate_confidence_scores(embedding_model, responses, main_cluster_models)
+    confidence_score_global = await calculate_confidence_scores(embedding_model, responses, list(responses.keys()))
+    print("Confidence score:", confidence_score)
+    print("Global confidence score:", confidence_score_global)
     return responses[closest_model_id], shapley_values, confidence_score
 
 
@@ -77,7 +82,6 @@ def calculate_shapley_values(embeddings_dict: dict[str, np.ndarray]):
     # print models in main cluster
     main_cluster_indices = [i for i, label in enumerate(cluster_labels) if label == main_cluster_label]
     main_cluster_models = [models[i] for i in main_cluster_indices]
-    print("Models in main cluster:", main_cluster_models)
 
     def utility(coalition):
         if not coalition:
@@ -145,14 +149,10 @@ async def calculate_confidence_scores(
         main_cluster_models: list[str]
 ):
     valid_responses = {model: response for model, response in responses.items() if model in main_cluster_models}
+    txs = [extract_values(response) for response in valid_responses.values()]
 
-    operations = [extract_values(response) for response in valid_responses.values()]
-
-    operation_counts = Counter([op["operation"] for op in operations])
-    token_a_counts = Counter([op["token_a"] for op in operations])
-    token_b_counts = Counter([op["token_b"] for op in operations])
-    amounts = [op["amount"] for op in operations]
-    embeddings = [await _get_embedding(embedding_model, op["reason"]) for op in operations]
+    amounts = [op["amount"] for op in txs]
+    embeddings = [await _get_embedding(embedding_model, op["reason"]) for op in txs]
 
     cosine_similarities = cosine_similarity(embeddings)
     upper_triangle_values = cosine_similarities[np.triu_indices(len(embeddings), k=1)]
@@ -161,13 +161,11 @@ async def calculate_confidence_scores(
     cosine_confidence = 1 - (std_cosine_similarity / mean_cosine_similarity)
 
     # Swap/Lend Confidence
-    total_operations = len(operations)
-    swap_confidence = operation_counts["SWAP"] / total_operations
-    lend_confidence = operation_counts["LEND"] / total_operations
+    operation_confidence = purity([op["operation"] for op in txs])
 
     # Token Confidence
-    token_a_confidence = sum(token_a_counts.values()) / total_operations
-    token_b_confidence = sum(token_b_counts.values()) / total_operations
+    token_a_confidence = purity([op["token_a"] for op in txs])
+    token_b_confidence = purity([op["token_b"] for op in txs])
 
     # Amount Confidence (mean and variability)
     avg_amount = np.mean(amounts)
@@ -175,41 +173,37 @@ async def calculate_confidence_scores(
     amount_confidence = 1 - (std_amount / avg_amount)
 
     w_cosine = 0.25
-    w_swap = 0.2
-    w_lend = 0.2
+    w_operation = 0.4
     w_token_a = 0.1
     w_token_b = 0.1
     w_amount = 0.15
 
     overall_confidence = (w_cosine * cosine_confidence) + \
-                         (w_swap * swap_confidence) + \
-                         (w_lend * lend_confidence) + \
+                         (w_operation * operation_confidence) + \
                          (w_token_a * token_a_confidence) + \
                          (w_token_b * token_b_confidence) + \
                          (w_amount * amount_confidence)
 
+
+    print(f"Tokens {[op["token_a"] for op in txs]} and {[op["token_b"] for op in txs]}; Amounts {amounts}; Operations {[op['operation'] for op in txs]}")
+    print(f"Confidence scores: cosine={cosine_confidence}, operation={operation_confidence}, token_a={token_a_confidence}, token_b={token_b_confidence}, amount={amount_confidence}")
+
     return overall_confidence
 
 
-def extract_values(text) -> dict[str, str]:
-    pattern = r'\{["\']operation["\']: ["\'](.*?)["\'], ["\']token_a["\']: ["\'](.*?)["\'], ["\']token_b["\']: ["\'](.*?)["\'], ["\']amount["\']: ["\'](.*?)["\'], ["\']reason["\']: ["\'](.*?)["\']\}'
-    match = re.search(pattern, text)
+def purity(group):
+    n = len(group)
+    if n == 0:
+        return 1
 
-    if match:
-        return {
-            "operation": match.group(1),
-            "token_a": match.group(2),
-            "token_b": match.group(3),
-            "amount": float(match.group(4)),
-            "reason": match.group(5),
-        }
-    return {
-        "operation": "",
-        "token_a": "",
-        "token_b": "",
-        "amount": float(0),
-        "reason": "",
-    }
+    counts = Counter(group)
+    probabilities = [count / n for count in counts.values()]
+
+    entropy = -sum(p * math.log2(p) for p in probabilities)
+    max_entropy = math.log2(n) if n > 1 else 1
+    normalized_entropy = entropy / max_entropy if max_entropy > 0 else 0
+
+    return 1 - normalized_entropy
 
 
 def find_best_embedding(embeddings_dict, eps=0.2, min_samples=2):

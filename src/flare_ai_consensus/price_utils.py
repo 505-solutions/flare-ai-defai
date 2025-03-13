@@ -1,7 +1,10 @@
-import time
 import requests
 import pandas as pd
+from web3 import Web3
 
+# import rpc url from .env
+from dotenv import load_dotenv
+import os
 
 class FTSOFeed:
     def __init__(self):
@@ -145,3 +148,43 @@ class FTSOFeed:
                 "overall_change_percent": overall_change
             }
         }
+
+class WalletBalances:
+
+    def __init__(self):
+        self.token_addresses = {
+            "WC2FLR": "0xC67DCE33D7A8efA5FfEB961899C73fe01bCe9273",
+            "testFIL": "0xAA6184134059391693f85D74b53ab614e279fBc3",
+            "testUSD": "0x6623C0BB56aDb150dC9C6BdB8682521354c2BF73",
+            "FLR": "0x0000000000000000000000000000000000000000",
+            "KineticUSDC": "0xCe987892D5AD2990b8279e8F76530CfF72977666",
+            "KineticUSDT": "0xAC6e1c5fdc401ddcC554f7c06dc422152dEb3cB7",
+        }
+
+        load_dotenv()
+        self.RPC_URL = os.getenv("WEB3_PROVIDER_URL")
+        self.w3 = Web3(Web3.HTTPProvider(self.RPC_URL))
+        self.USDC_CONTRACT_ADDRESS = self.token_addresses["testUSD"]
+
+
+    def get_balances(self, address: str) -> dict:
+        usdc_abi = '[{"constant":true,"inputs":[{"name":"_owner","type":"address"}],"name":"balanceOf","outputs":[{"name":"balance","type":"uint256"}],"type":"function"}]'
+        flr_balance = self._get_flr_balance(address)
+        usdc_balance = self._get_token_balance(address, self.USDC_CONTRACT_ADDRESS, usdc_abi)
+
+        return {
+            "FLR balance": flr_balance,
+            "USDC balance": usdc_balance
+        }
+
+    def _get_flr_balance(self, address):
+        balance_wei = self.w3.eth.get_balance(address)
+        balance_flr = self.w3.from_wei(balance_wei, 'ether')
+        return balance_flr
+
+    def _get_token_balance(self, address, token_address, abi):
+        contract = self.w3.eth.contract(address=token_address, abi=abi)
+        balance_wei = contract.functions.balanceOf(address).call()
+        balance_token = balance_wei / (10 ** 6)
+        return balance_token
+
