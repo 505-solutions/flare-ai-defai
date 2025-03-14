@@ -1,10 +1,3 @@
-# Stage 1: Build Frontend
-FROM node:18-alpine AS frontend-builder
-WORKDIR /frontend
-COPY chat-ui/ .
-RUN npm install
-RUN npm run build
-
 # Stage 2: Build Backend
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS backend-builder
 ADD . /flare-ai-defai
