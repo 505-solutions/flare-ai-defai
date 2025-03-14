@@ -122,7 +122,7 @@ def start() -> None:
     """
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=80)  # noqa: S104
+    uvicorn.run(app, host="0.0.0.0", port=8080)  # noqa: S104
 
 
 if __name__ == "__main__":
