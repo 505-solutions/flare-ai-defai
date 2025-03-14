@@ -1,5 +1,6 @@
 import asyncio
 import math
+
 import structlog
 
 from flare_ai_consensus.consensus.aggregator import (
@@ -12,27 +13,25 @@ from flare_ai_consensus.utils import parse_chat_response
 
 logger = structlog.get_logger(__name__)
 
-
 async def run_consensus(
         provider: AsyncOpenRouterProvider,
         consensus_config: ConsensusConfig,
         initial_conversation: list[list[Message]],
         embedding_model: EmbeddingModel
-):
+) -> tuple[str, dict, dict, list[float]]:
 
     response_data = {}
     response_data["initial_conversation"] = initial_conversation
-
-    weighted_shapley_values = {}
-    total_weight = 0
+    confidences = []
 
     # Step 1: Initial round.
     responses = await send_round(
         provider, consensus_config, response_data["initial_conversation"]
     )
-    aggregated_response, shapley_values = await async_centralized_embedding_aggregator(
+    aggregated_response, shapley_values, confidence = await async_centralized_embedding_aggregator(
         embedding_model, responses
     )
+    confidences.append(confidence)
 
     initial_weight = 1.0  # Base weight for first iteration
     weighted_shapley_values = {k: v * initial_weight for k, v in shapley_values.items()}
@@ -55,9 +54,10 @@ async def run_consensus(
             provider, consensus_config, initial_conversation, aggregated_response
         )
 
-        aggregated_response, shapley_values = await async_centralized_embedding_aggregator(
+        aggregated_response, shapley_values, confidence = await async_centralized_embedding_aggregator(
             embedding_model, responses
         )
+        confidences.append(confidence)
 
         for k, v in shapley_values.items():
             if k in weighted_shapley_values:
@@ -81,7 +81,7 @@ async def run_consensus(
 
     normalized_shapley_values = {k: v / total_weight for k, v in weighted_shapley_values.items()}
 
-    return aggregated_response, normalized_shapley_values, response_data
+    return aggregated_response, normalized_shapley_values, response_data, confidences
 
 
 def _build_improvement_conversation(

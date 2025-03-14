@@ -33,6 +33,10 @@ from flare_ai_defai.blockchain.addresses import (
 from flare_ai_defai.prompts import PromptService, SemanticRouterResponse
 from flare_ai_defai.settings import settings
 
+import time
+
+from flare_ai_consensus.utils.parser_utils import extract_values
+
 logger = structlog.get_logger(__name__)
 router = APIRouter()
 
@@ -123,6 +127,7 @@ class ChatRouter:
                     or "approve" in self.blockchain.tx_queue[-1].msg.lower()
                 ):
                     try:
+                        start_time = time.time()
                         tx_hash = self.blockchain.send_tx_in_queue()
                     except Web3RPCError as e:
                         self.logger.exception("send_tx_failed", error=str(e))
@@ -141,7 +146,7 @@ class ChatRouter:
                         response_mime_type=mime_type,
                         response_schema=schema,
                     )
-                    return {"response": tx_confirmation_response.text}
+                    return {"response": tx_confirmation_response.text, "time_elapsed": str(time.time() - start_time)}
                 if self.attestation.attestation_requested:
                     try:
                         resp = self.attestation.get_token([message.message])
@@ -340,7 +345,9 @@ class ChatRouter:
         if not self.blockchain.address:
             self.blockchain.generate_account()
 
-        answer, shapley_values, response_data = await run_consensus_test(message)
+        start_time = time.time()
+
+        answer, shapley_values, response_data, confidence = await run_consensus_test(message, self.blockchain.address)
 
         operation, token_a, token_b, amount, reason = self.extract_answer_data(answer)
 
@@ -370,6 +377,8 @@ class ChatRouter:
             "response": result.get("response"),
             "shapley_values": json.dumps(shapley_values),
             "response_data": json.dumps(response_data),
+            "time_elapsed": str(time.time() - start_time),
+            "confidence_score": str(confidence),
         }
 
     # TODO: ADD A MINT WRAPPED FLR FUNCTION
@@ -377,22 +386,15 @@ class ChatRouter:
     def extract_answer_data(self, answer: str) -> (str, str, str, int, str):
 
         try:
-            answer = answer.strip()  # Remove whitespace
-            if answer.startswith("\ufeff"):  # BOM character
-                answer = answer[1:]  # Remove it
-
-            print(f"Answer: {answer}")
-
-            answer_json = json.loads(answer)
-
-            print(f"Answer JSON: {answer_json}")
+            answer_obj = extract_values(answer)
+            print(f"Answer object: {answer_obj}")
 
             # Extract values
-            operation = answer_json["operation"].lower()
-            token_a = answer_json["token_a"]
-            token_b = answer_json["token_b"]
-            amount = int(answer_json["amount"])
-            reason = answer_json["reason"]
+            operation = answer_obj["operation"].lower()
+            token_a = answer_obj["token_a"]
+            token_b = answer_obj["token_b"]
+            amount = float(answer_obj["amount"])
+            reason = answer_obj["reason"]
 
             amount = min(amount, 1)
 
@@ -657,8 +659,10 @@ class ChatRouter:
         Returns:
             dict[str, str]: Response from AI provider
         """
+
+        start_time = time.time()
         response = self.ai.send_message(message)
-        return {"response": response.text}
+        return {"response": response.text, "time_elapsed": str(time.time() - start_time)}
 
 
 # implement code for adding an agent to the system (to consensus_config)
