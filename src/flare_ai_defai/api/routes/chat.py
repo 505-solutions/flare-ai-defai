@@ -276,10 +276,9 @@ class ChatRouter:
         # [Add funds to account](https://faucet.flare.network/coston2)
         # Ready to start exploring the Flare network?
 
-        attestation = self.attestation.get_token([address])
-        # attestation = get_simulated_token()
+        # attestation = self.attestation.get_token([address])
+        attestation = get_simulated_token()
         
-
         amount = gen_address_json.get("amount")
 
         response_text = f"Account created and ready to be funded with {amount} FLR: `{address}` The account is managed by Trusted Execution Environment (TEE) inside [Google Confidential Space](https://cloud.google.com/docs/security/confidential-space). The attestation is: `{attestation}` "
