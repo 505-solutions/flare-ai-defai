@@ -252,6 +252,9 @@ class ChatRouter:
             dict[str, str]: Response containing new account information
                 or existing account
         """
+        
+        start_time = time.time()
+        
         if self.blockchain.address:
             return {"response": f"Account exists - {self.blockchain.address}"}
 
@@ -271,7 +274,7 @@ class ChatRouter:
 
         amount = gen_address_json.get("amount")
 
-        response_text = f"Account created with {amount} FLR: {address}. GAL JE EN VELK LULČK IN ON JE HOTU NAPISAT TLE NEKO LEPO ZGODBICO O TEM KAJ SE ZGODI"
+        response_text = f"Account created and ready to be funded with {amount} FLR: `{address}` The account is managed by Trusted Execution Environment (TEE) inside [Google Confidential Space](https://cloud.google.com/docs/security/confidential-space). The attestation is: `{attestation}` "
 
         if amount:
             return {
@@ -282,6 +285,7 @@ class ChatRouter:
                 "header": str(attestation_dict["header"]),
                 "payload": str(attestation_dict["payload"]),
                 "signature": str(attestation_dict["signature"]),
+                "time_elapsed": str(time.time() - start_time),
             }
         else:
             return {"response": "Account creation failed"}
@@ -380,7 +384,7 @@ class ChatRouter:
             "shapley_values": json.dumps(shapley_values),
             "response_data": json.dumps(response_data),
             "time_elapsed": str(time.time() - start_time),
-            "confidence_score": str(confidence),
+            "confidence_score": json.dumps([float(v) for v in confidence]),
         }
 
     # TODO: ADD A MINT WRAPPED FLR FUNCTION
