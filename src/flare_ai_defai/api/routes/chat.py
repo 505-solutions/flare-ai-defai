@@ -146,7 +146,10 @@ class ChatRouter:
                         response_mime_type=mime_type,
                         response_schema=schema,
                     )
-                    return {"response": tx_confirmation_response.text, "time_elapsed": str(time.time() - start_time)}
+                    return {
+                        "response": tx_confirmation_response.text,
+                        "time_elapsed": str(time.time() - start_time),
+                    }
                 if self.attestation.attestation_requested:
                     try:
                         resp = self.attestation.get_token([message.message])
@@ -270,7 +273,7 @@ class ChatRouter:
         # [Add funds to account](https://faucet.flare.network/coston2)
         # Ready to start exploring the Flare network?
 
-        attestation = get_simulated_token()
+        attestation = self.attestation.get_token([address])
 
         amount = gen_address_json.get("amount")
 
@@ -347,7 +350,9 @@ class ChatRouter:
 
         start_time = time.time()
 
-        answer, shapley_values, response_data, confidence = await run_consensus_test(message, self.blockchain.address)
+        answer, shapley_values, response_data, confidence = await run_consensus_test(
+            message, self.blockchain.address
+        )
 
         operation, token_a, token_b, amount, reason = self.extract_answer_data(answer)
 
@@ -662,7 +667,10 @@ class ChatRouter:
 
         start_time = time.time()
         response = self.ai.send_message(message)
-        return {"response": response.text, "time_elapsed": str(time.time() - start_time)}
+        return {
+            "response": response.text,
+            "time_elapsed": str(time.time() - start_time),
+        }
 
 
 # implement code for adding an agent to the system (to consensus_config)
