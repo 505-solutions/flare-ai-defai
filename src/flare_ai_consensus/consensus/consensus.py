@@ -42,7 +42,7 @@ async def run_consensus(
         "initial response aggregation complete", aggregated_response=aggregated_response
     )
 
-    response_data["iteration_1"] = {k: extract_values(v) for k, v in responses.items()}
+    response_data["iteration_0"] = {k: extract_values(v) for k, v in responses.items()}
     response_data["aggregate_0"] = extract_values(aggregated_response)
     response_data["shapley_0"] = shapley_values
     response_data["weight_0"] = initial_weight
