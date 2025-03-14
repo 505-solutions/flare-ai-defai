@@ -1,11 +1,6 @@
-docker build -t demistify-backend .
-
-docker push us-docker.pkg.dev/flare-network-sandbox/flare-tee/demistify-backend:latest
-
+# docker build -t demistify-backend .
 
 source .env
-
-
 
 
 gcloud compute instances create $INSTANCE_NAME \
@@ -18,6 +13,8 @@ tee-container-log-redirect=true,\
 tee-env-GEMINI_API_KEY=$GEMINI_API_KEY,\
 tee-env-GEMINI_MODEL=$GEMINI_MODEL,\
 tee-env-WEB3_PROVIDER_URL=$WEB3_PROVIDER_URL,\
+tee-env-OPEN_ROUTER_API_KEY=$OPEN_ROUTER_API_KEY,\
+tee-env-GEMINI_EMBEDDING_KEY=$GEMINI_EMBEDDING_KEY,\
 tee-env-SIMULATE_ATTESTATION=false \
   --maintenance-policy=MIGRATE \
   --provisioning-model=STANDARD \
