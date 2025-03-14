@@ -285,8 +285,6 @@ class ChatRouter:
                 "header": str(attestation_dict["header"]),
                 "payload": str(attestation_dict["payload"]),
                 "signature": str(attestation_dict["signature"]),
-                "e": str(attestation_dict["e"]),
-                "n": str(attestation_dict["n"]),
                 "time_elapsed": str(time.time() - start_time),
             }
         else:

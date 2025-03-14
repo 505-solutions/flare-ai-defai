@@ -33,6 +33,7 @@ def get_well_known_file(
 def get_rsa_data_by_kid(kid: str) -> tuple[str, str]:
     wk = get_well_known_file()
     jwks = fetch_jwks(wk["jwks_uri"])
+    print(f"JWKS: {jwks}")
     for key in jwks["keys"]:
         if key["kid"] == kid:
             return key["e"], key["n"]
@@ -130,17 +131,10 @@ def parse_attestation(attestation: str) -> dict:
     payload_hex = base64url_decode(payload_b64).hex()
     signature_hex = base64url_decode(signature_b64).hex()
 
-    header_json = decode_jwt_part(header_b64)
-
-    oidc_pub_key_inputs = print_oidc_pub_key_inputs(header_json)
-
     return {
         "header": header_hex,
         "payload": payload_hex,
         "signature": signature_hex,
-        "header_json": header_json,
-        "e": oidc_pub_key_inputs["e"],
-        "n": oidc_pub_key_inputs["n"],
     }
 
 
