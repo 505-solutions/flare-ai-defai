@@ -23,6 +23,7 @@ from flare_ai_consensus.attestation.vtpm_attestation import get_simulated_token
 from flare_ai_defai.ai import GeminiProvider
 from flare_ai_defai.ai.consensus import run_consensus_test
 from flare_ai_defai.attestation import Vtpm, VtpmAttestationError
+from flare_ai_defai.attestation.parse_attestation import parse_attestation
 from flare_ai_defai.blockchain import FlareProvider
 from flare_ai_defai.blockchain.addresses import (
     getLendingTokenAddress,
@@ -264,16 +265,9 @@ class ChatRouter:
         )
 
         gen_address_json = json.loads(gen_address_response.text)
-        print(f"Gen address json: {gen_address_json}")
-
-        # Example tone:
-        # "Welcome to Flare! 🎉 Your new account is secured by secure hardware (TEE),
-        # keeping your private keys safe and secure, you freely share your
-        # public address: 0x123...
-        # [Add funds to account](https://faucet.flare.network/coston2)
-        # Ready to start exploring the Flare network?
 
         attestation = self.attestation.get_token([address])
+        attestation_dict = parse_attestation(attestation)
 
         amount = gen_address_json.get("amount")
 
@@ -285,6 +279,9 @@ class ChatRouter:
                 "amount": str(amount),
                 "address": address,
                 "attestation": attestation,
+                "header": str(attestation_dict["header"]),
+                "payload": str(attestation_dict["payload"]),
+                "signature": str(attestation_dict["signature"]),
             }
         else:
             return {"response": "Account creation failed"}
