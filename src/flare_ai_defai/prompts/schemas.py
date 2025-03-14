@@ -32,6 +32,7 @@ class SemanticRouterResponse(str, Enum):
         CONVERSATIONAL: Route to general conversational response
     """
 
+    GENERATE_ACCOUNT = "GenerateAccount"
     FIND_BEST_TRANSACTION = "FindBestTransaction"
     SWAP_TOKEN = "SwapToken"
     REQUEST_ATTESTATION = "RequestAttestation"
@@ -86,6 +87,21 @@ class TokenLendResponse(TypedDict):
     """
 
     token: str
+    amount: float
+
+
+class GenerateAccountResponse(TypedDict):
+    """
+    Type definition for account generation operation parameters.
+
+    Defines the required fields for a token lend operation, including
+    the token and amount to be lent.
+
+    Attributes:
+        token (str): The token to lend
+        amount (float): The amount of token to lend
+    """
+    
     amount: float
 
 

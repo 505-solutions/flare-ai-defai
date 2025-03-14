@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 from web3 import Web3
 from web3.exceptions import Web3RPCError
 
+from flare_ai_consensus.attestation.vtpm_attestation import get_simulated_token
 from flare_ai_defai.ai import GeminiProvider
 from flare_ai_defai.ai.consensus import run_consensus_test
 from flare_ai_defai.attestation import Vtpm, VtpmAttestationError
@@ -217,6 +218,7 @@ class ChatRouter:
             dict[str, str]: Response from the appropriate handler
         """
         handlers = {
+            SemanticRouterResponse.GENERATE_ACCOUNT: self.handle_generate_account,
             SemanticRouterResponse.FIND_BEST_TRANSACTION: self.handle_find_best_transaction,
             SemanticRouterResponse.SWAP_TOKEN: self.handle_swap_token,
             SemanticRouterResponse.REQUEST_ATTESTATION: self.handle_attestation,
@@ -230,7 +232,7 @@ class ChatRouter:
 
         return await handler(message)
 
-    async def handle_generate_account(self, _: str) -> dict[str, str]:
+    async def handle_generate_account(self, message: str) -> dict[str, str]:
         """
         Handle account generation requests.
 
@@ -243,14 +245,41 @@ class ChatRouter:
         """
         if self.blockchain.address:
             return {"response": f"Account exists - {self.blockchain.address}"}
-        address = self.blockchain.generate_account()
+
+        address = "0x5a7338D940330109A2722140B7790fC4e286E54C"  # todo: self.blockchain.generate_account()
+
         prompt, mime_type, schema = self.prompts.get_formatted_prompt(
-            "generate_account", address=address
+            "generate_account", user_input=message
         )
         gen_address_response = self.ai.generate(
             prompt=prompt, response_mime_type=mime_type, response_schema=schema
         )
-        return {"response": gen_address_response.text}
+
+        gen_address_json = json.loads(gen_address_response.text)
+        print(f"Gen address json: {gen_address_json}")
+
+        # Example tone:
+        # "Welcome to Flare! 🎉 Your new account is secured by secure hardware (TEE),
+        # keeping your private keys safe and secure, you freely share your
+        # public address: 0x123...
+        # [Add funds to account](https://faucet.flare.network/coston2)
+        # Ready to start exploring the Flare network?
+
+        attestation = get_simulated_token()
+
+        amount = gen_address_json.get("amount")
+
+        response_text = f"Account created with {amount} FLR: {address}. GAL JE EN VELK LULČK IN ON JE HOTU NAPISAT TLE NEKO LEPO ZGODBICO O TEM KAJ SE ZGODI"
+
+        if amount:
+            return {
+                "response": response_text,
+                "amount": str(amount),
+                "address": address,
+                "attestation": attestation,
+            }
+        else:
+            return {"response": "Account creation failed"}
 
     async def handle_send_token(self, message: str) -> dict[str, str]:
         """

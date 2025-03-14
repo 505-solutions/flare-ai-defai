@@ -26,6 +26,7 @@ from flare_ai_defai.prompts.schemas import (
     TokenSendResponse,
     TokenSwapResponse,
     TokenLendResponse,
+    GenerateAccountResponse,
 )
 from flare_ai_defai.prompts.templates import (
     CONVERSATIONAL,
@@ -149,9 +150,9 @@ class PromptLibrary:
                 name="generate_account",
                 description="Generate a new account for a user",
                 template=GENERATE_ACCOUNT,
-                required_inputs=["address"],
-                response_schema=None,
-                response_mime_type=None,
+                required_inputs=["user_input"],
+                response_schema=GenerateAccountResponse,
+                response_mime_type="application/json",
                 category="account",
             ),
             Prompt(

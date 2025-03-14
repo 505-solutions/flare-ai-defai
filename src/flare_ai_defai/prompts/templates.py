@@ -6,6 +6,9 @@ Classify the following user input into EXACTLY ONE category. Analyze carefully a
 
 Categories (in order of precedence):
 
+
+
+
 1. FIND_BEST_TRANSACTION
    • Keywords: find, best, swap, lend, borrow, optimal, best, best swap, best lend, best yield
    • Must involve asking for the best transaction
@@ -23,12 +26,17 @@ Categories (in order of precedence):
    • Must involve lending or borrowing tokens
    • Use when the user wants to lend or borrow tokens
 
-4. REQUEST_ATTESTATION
+4. GENERATE_ACCOUNT
+   • Keywords: create wallet, new account, generate address, make wallet
+   • Must express intent to create/generate new account/wallet
+   • Ignore if just asking about existing accounts
+
+5. REQUEST_ATTESTATION
    • Keywords: attestation, verify, prove, check enclave
    • Must specifically request verification or attestation
    • Related to security or trust verification
 
-5. CONVERSATIONAL (default)
+6. CONVERSATIONAL (default)
    • Use when input doesn't clearly match above categories
    • General questions, greetings, or unclear requests
    • Any ambiguous or multi-category inputs
@@ -87,33 +95,50 @@ Instructions:
 """
 
 GENERATE_ACCOUNT: Final = """
-Generate a welcoming message that includes ALL of these elements in order:
+Extract EXACTLY one piece of information from the input for a token generate account operation:
 
-1. Welcome message that conveys enthusiasm for the user joining
-2. Security explanation:
-   - Account is secured in a Trusted Execution Environment (TEE)
-   - Private keys never leave the secure enclave
-   - Hardware-level protection against tampering
-3. Account address display:
-   - EXACTLY as provided, make no changes: ${address}
-   - Format with clear visual separation
-4. Funding account instructions:
-   - Tell the user to fund the new account: [Add funds to account](https://faucet.flare.network/coston2)
+1. AMOUNT
+   Number extraction rules:
+   • Convert written numbers to digits (e.g., "five" → 5.0)
+   • Handle decimal and integer inputs
+   • Convert ALL integers to float (e.g., 100 → 100.0)
+   • Valid formats:
+     - Decimal: "1.5", "0.5"
+     - Integer: "1", "100"
+     - With tokens: "5 FLR", "10 USDC"
+   • Extract first valid number only
+   
+   • Amount MUST be positive
+   • FAIL if no valid amount found
 
-Important rules:
-- DO NOT modify the address in any way
-- Explain that addresses are public information
-- Use markdown for formatting
-- Keep the message concise (max 4 sentences)
-- Avoid technical jargon unless explaining TEE
+Input: ${user_input}
 
-Example tone:
-"Welcome to Flare! 🎉 Your new account is secured by secure hardware (TEE),
-keeping your private keys safe and secure, you freely share your
-public address: 0x123...
-[Add funds to account](https://faucet.flare.network/coston2)
-Ready to start exploring the Flare network?"
+Response format:
+{
+  "amount": <float_value>,
+}
+
+Processing rules:
+- Amount MUST be present
+- DO NOT infer missing values
+- Amount MUST be int or float type
+- Amount MUST be positive
+- FAIL if any value missing or invalid
+
+Examples:
+✓ "generate an account with 1 FLR" → {"amount": 1.0}
+✓ "Create wallet with 7.3 FLR" → {"amount": 7.3}
+✓ "Create account and fund with 10.0 FLR" → {"amount": 10.0}
+✗ "generate account" → FAIL (missing amount)
 """
+
+# Example tone:
+# "Welcome to Flare! 🎉 Your new account is secured by secure hardware (TEE),
+# keeping your private keys safe and secure, you freely share your
+# public address: 0x123...
+# [Add funds to account](https://faucet.flare.network/coston2)
+# Ready to start exploring the Flare network?"
+
 
 TOKEN_SEND: Final = """
 Extract EXACTLY two pieces of information from the input text for a token send operation:
