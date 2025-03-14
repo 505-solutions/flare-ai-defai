@@ -137,7 +137,7 @@ def calculate_shapley_values(embeddings_dict: dict[str, np.ndarray]):
     # Normalize Shapley values to sum to 1
     total_value = sum(shapley_values.values())
     if total_value > 0:
-        shapley_values = {model: value / total_value for model, value in shapley_values.items()}
+        shapley_values = {model: float(value / total_value) for model, value in shapley_values.items()}
 
     print("Shapley values:", shapley_values)
     return shapley_values, main_cluster_models

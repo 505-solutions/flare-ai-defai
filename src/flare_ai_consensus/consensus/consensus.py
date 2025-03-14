@@ -10,6 +10,7 @@ from flare_ai_consensus.embeddings import EmbeddingModel
 from flare_ai_consensus.router import AsyncOpenRouterProvider, ChatRequest
 from flare_ai_consensus.settings import ConsensusConfig, Message, ModelConfig
 from flare_ai_consensus.utils import parse_chat_response
+from flare_ai_consensus.utils.parser_utils import extract_values
 
 logger = structlog.get_logger(__name__)
 
@@ -41,9 +42,10 @@ async def run_consensus(
         "initial response aggregation complete", aggregated_response=aggregated_response
     )
 
-    response_data["iteration_0"] = responses
-    response_data["aggregate_0"] = aggregated_response
+    response_data["iteration_0"] = {k: extract_values(v) for k, v in responses.items()}
+    response_data["aggregate_0"] = extract_values(aggregated_response)
     response_data["shapley_0"] = shapley_values
+    response_data["weight_0"] = initial_weight
 
     # Step 2: Improvement rounds.
     for i in range(consensus_config.iterations):
@@ -74,12 +76,14 @@ async def run_consensus(
             iteration_weight=iteration_weight
         )
 
-        response_data[f"iteration_{i + 1}"] = responses
-        response_data[f"aggregate_{i + 1}"] = aggregated_response
+        response_data[f"iteration_{i + 1}"] = {k: extract_values(v) for k, v in responses.items()}
+        response_data[f"aggregate_{i + 1}"] = extract_values(aggregated_response)
         response_data[f"shapley_{i + 1}"] = shapley_values
         response_data[f"weight_{i + 1}"] = iteration_weight
 
     normalized_shapley_values = {k: v / total_weight for k, v in weighted_shapley_values.items()}
+
+    del response_data["initial_conversation"]
 
     return aggregated_response, normalized_shapley_values, response_data, confidences
 

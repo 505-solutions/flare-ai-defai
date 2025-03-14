@@ -37,5 +37,5 @@ def extract_values(text) -> dict[str, str]:
         "token_a": "",
         "token_b": "",
         "amount": float(0),
-        "reason": "",
+        "reason": text,
     }
