@@ -111,11 +111,13 @@ def print_oidc_pub_key_inputs(header_json: dict) -> None:
         if kid:
             print("KeyId: ", kid)
             e, n = get_rsa_data_by_kid(kid)
-            print("----addOidcPubKey INPUTS----")
-            print(f"kid:\n{kid}\n")
-            print(f"e:\n{base64url_decode(e).hex()}\n")
-            print(f"n:\n{base64url_decode(n).hex()}\n")
-            print("-----------------------")
+
+            return {
+                "kid": kid,
+                "e": base64url_decode(e).hex(),
+                "n": base64url_decode(n).hex(),
+            }
+
         else:
             print("No 'kid' found in header for OIDC token.")
 
@@ -128,10 +130,17 @@ def parse_attestation(attestation: str) -> dict:
     payload_hex = base64url_decode(payload_b64).hex()
     signature_hex = base64url_decode(signature_b64).hex()
 
+    header_json = decode_jwt_part(header_b64)
+
+    oidc_pub_key_inputs = print_oidc_pub_key_inputs(header_json)
+
     return {
         "header": header_hex,
         "payload": payload_hex,
         "signature": signature_hex,
+        "header_json": header_json,
+        "e": oidc_pub_key_inputs["e"],
+        "n": oidc_pub_key_inputs["n"],
     }
 
 

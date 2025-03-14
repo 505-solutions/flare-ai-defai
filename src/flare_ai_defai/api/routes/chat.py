@@ -252,9 +252,9 @@ class ChatRouter:
             dict[str, str]: Response containing new account information
                 or existing account
         """
-        
+
         start_time = time.time()
-        
+
         if self.blockchain.address:
             return {"response": f"Account exists - {self.blockchain.address}"}
 
@@ -285,6 +285,8 @@ class ChatRouter:
                 "header": str(attestation_dict["header"]),
                 "payload": str(attestation_dict["payload"]),
                 "signature": str(attestation_dict["signature"]),
+                "e": str(attestation_dict["e"]),
+                "n": str(attestation_dict["n"]),
                 "time_elapsed": str(time.time() - start_time),
             }
         else:
